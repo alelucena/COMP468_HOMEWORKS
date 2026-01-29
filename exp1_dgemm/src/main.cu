@@ -66,12 +66,37 @@ int main(int argc, char** argv) {
     const size_t bytes_b = static_cast<size_t>(k) * n * sizeof(float);
     const size_t bytes_c = static_cast<size_t>(m) * n * sizeof(float);
 
+    // h_a(m * k): Creates a vector for Matrix A with enough space for m * k floating-point numbers.
+    // h_b(k * n): Creates a vector for Matrix B with space for k * n floats.
+
+    // h_c(m * n, 0.0f): Creates a vector for the GPU's output (Matrix C). The second argument,
+    // 0.0f, ensures every single element is initialized to zero.
+
+    // h_ref(m * n, 0.0f): Creates a vector for the "Reference" result (calculated by the CPU). 
+    // Used to check if the GPU math is actually correct.
+
     std::vector<float> h_a(m * k), h_b(k * n), h_c(m * n, 0.0f), h_ref(m * n, 0.0f);
 
     /* TODO(student): initialize h_a, h_b with reproducible random data (e.g., std::sin / std::cos). */
+    for (size_t i = 0; i < m * k; i++) {
+        h_a[i] = std::sin(static_cast<float>(i));
+    }
+
+    for (size_t i = 0; i < k * n; i++) {
+        h_b[i] = std::cos(static_cast<float>(i));
+    }
 
     float *d_a = nullptr, *d_b = nullptr, *d_c = nullptr;
     /* TODO(student): allocate device buffers and copy host data over. */
+
+    // Allocate device buffers
+    cudaMalloc(&d_a, bytes_a);
+    cudaMalloc(&d_b, bytes_b);
+    cudaMalloc(&d_c, bytes_c);
+
+    // Copy data to GPU from host
+    cudaMemcpy(d_a, h_a.data(), bytes_a, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b.data() , bytes_b, cudaMemcpyHostToDevice);
 
     cudaEvent_t start, stop;
     check_cuda(cudaEventCreate(&start), "create start");
@@ -80,7 +105,22 @@ int main(int argc, char** argv) {
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline" || opt.impl == "naive" || opt.impl == "tiled") {
         /* TODO(student): choose the right launch helper based on opt.impl and record elapsed_ms. */
-        (void)elapsed_ms;  // remove once timing implemented
+
+        // CUDA events for timing
+        cudaEventRecord(start);
+
+        // Select the appropriate launch - default stream (0)
+        if (opt.impl == "baseline" ||  opt.impl == "naive") {
+            launch_naive_gemm(d_a, d_b, d_c, opt.m, opt.n, opt.k, 0);
+        } else if (opt.impl == "tiled") {
+            launch_tiled_gemm(d_a, d_b, d_c, opt.m, opt.n, opt.k, 0);
+        }
+
+        // Record Stop and elapsed time
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        cudaEventElapsedTime(&elapsed_ms, start, stop);
+
     } else if (opt.impl == "cublas") {
         cublasHandle_t handle;
         check_cublas(cublasCreate(&handle), "cublasCreate");
@@ -112,9 +152,42 @@ int main(int argc, char** argv) {
     }
 
     /* TODO(student): copy d_c back into h_c. */
+    cudaMemcpy(h_c.data(), d_c, bytes_c, cudaMemcpyDeviceToHost);
 
     if (opt.verify) {
         /* TODO(student): run cuBLAS reference into h_ref (or reuse above) and compute max error. */
+
+        cublasHandle_t handle;
+        cublasCreate(&handle);
+
+        // 2. Call SGEMM (Single-precision General Matrix Multiply) - Column Major
+        // C =  alpha*A*B + beta*C
+        float alpha = 1.0f;
+        float beta = 0.0f;
+        cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N,
+                    opt.n, opt.m, opt.k,
+                    &alpha,
+                    d_b, opt.n,
+                    d_a, opt.k,
+                    &beta,
+                    d_c, opt.n);
+        
+        // Copy cuBLAS result to h_ref
+        cudaMemcpy(h_ref.data(), d_c, bytes_c, cudaMemcpyDeviceToHost);
+        cublasDestroy(handle);
+
+        // Compute max error
+        float max_error = 0.0f;
+        for (int i = 0; i < m * n; i++) {
+            float abs_difference = std::abs(h_c[i] - h_ref[i]);
+            if (abs_difference > max_error) {
+                max_error = abs_difference;
+            }
+        }
+
+        printf("Max Error: %e\n", max_error);
+
+
     }
 
     if (elapsed_ms > 0.0f) {
@@ -125,6 +198,11 @@ int main(int argc, char** argv) {
     }
 
     /* TODO(student): free device memory and destroy CUDA events. */
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     return 0;
 }
 
