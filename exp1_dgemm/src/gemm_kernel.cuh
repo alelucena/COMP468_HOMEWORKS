@@ -56,7 +56,7 @@ inline void launch_naive_gemm(const float* d_a,
     dim3 block(BLOCK_SIZE, BLOCK_SIZE, 1);
     dim3 grid = make_grid(M, N);
     /* TODO(student): launch gemm_naive_kernel with provided stream. */
-    
+
     // 3rd argument inside <<< >>> is the Shared Memory Size -> 0 because not using dynamic shared memory
     gemm_naive_kernel<<<grid, block, 0, stream >>>(d_a, d_b, d_c, M, N, K);
 }
@@ -76,6 +76,7 @@ inline void launch_tiled_gemm(const float* d_a,
     (void)d_c;
     (void)grid;
     (void)block;
+    (void) block.x;
     (void)stream;
 }
 
