@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
         // CUDA events for timing
         cudaEventRecord(start);
 
-        // Select the appropriate launch - default stream (0)
+        // Select the appropriate launcher - default stream (0)
         if (opt.impl == "baseline" ||  opt.impl == "naive") {
             launch_naive_gemm(d_a, d_b, d_c, opt.m, opt.n, opt.k, 0);
         } else if (opt.impl == "tiled") {
