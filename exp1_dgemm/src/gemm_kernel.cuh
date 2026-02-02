@@ -61,22 +61,21 @@ inline void launch_naive_gemm(const float* d_a,
     gemm_naive_kernel<<<grid, block, 0, stream >>>(d_a, d_b, d_c, M, N, K);
 }
 
-inline void launch_tiled_gemm(const float* d_a,
-                              const float* d_b,
-                              float* d_c,
-                              int M,
-                              int N,
-                              int K,
-                              cudaStream_t stream) {
-    dim3 block(BLOCK_SIZE, BLOCK_SIZE, 1);
-    dim3 grid = make_grid(M, N);
-    /* TODO(student): launch gemm_tiled_kernel and check for errors. */
-    (void)d_a;
-    (void)d_b;
-    (void)d_c;
-    (void)grid;
-    (void)block;
-    (void) block.x;
-    (void)stream;
-}
+// inline void launch_tiled_gemm(const float* d_a,
+//                               const float* d_b,
+//                               float* d_c,
+//                               int M,
+//                               int N,
+//                               int K,
+//                               cudaStream_t stream) {
+//     dim3 block(BLOCK_SIZE, BLOCK_SIZE, 1);
+//     dim3 grid = make_grid(M, N);
+//     /* TODO(student): launch gemm_tiled_kernel and check for errors. */
+//     (void)d_a;
+//     (void)d_b;
+//     (void)d_c;
+//     (void)grid;
+//     (void)block;
+//     (void)stream;
+// }
 
