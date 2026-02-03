@@ -22,20 +22,20 @@ __global__ void gemm_naive_kernel(const float* __restrict__ A,
     
     // Boundary Check
     if (row < M && col < N) {
-        //float value = 0;
+        float value = 0;
 
         // POISON LINES:
-        C[row * N + col] = 1234.56f; 
-        return;
+        // C[row * N + col] = 1234.56f; 
+        // return;
 
-        // // Dot product
-        // for (int k = 0; k < K; k++) {
-        //     // A is M * K and B is K * N
-        //     value += A[row * K + k] * B[k * N + col];
-        // }
+        // Dot product
+        for (int k = 0; k < K; k++) {
+            // A is M * K and B is K * N
+            value += A[row * K + k] * B[k * N + col];
+        }
 
-        // // Set value in C matrix
-        // C[row * N + col] = value;
+        // Set value in C matrix
+        C[row * N + col] = value;
     }
 
 
