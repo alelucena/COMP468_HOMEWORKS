@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
 
         // Select the appropriate launcher - default stream (0)
         if (opt.impl == "baseline") {
-            launch_baseline_gemm(d_a, d_b, d_c, m, n, k, 0); 
+            launch_naive_gemm(d_a, d_b, d_c, m, n, k, 0);
         } else if (opt.impl == "naive") {
             launch_naive_gemm(d_a, d_b, d_c, m, n, k, 0);
         } else if (opt.impl == "tiled") {
