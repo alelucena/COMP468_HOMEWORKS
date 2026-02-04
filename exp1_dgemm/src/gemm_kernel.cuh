@@ -48,6 +48,51 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
                                   int N,
                                   int K) {
     /* TODO(student): use shared memory tiles of size BLOCK_SIZE x BLOCK_SIZE */
+    __shared__ float tile_A[BLOCK_SIZE][BLOCK_SIZE];
+    __shared__ float tile_B[BLOCK_SIZE][BLOCK_SIZE];
+    
+    // Init
+    int row = blockIdx.y * BLOCK_SIZE + threadIdx.y;
+    int col = blockIdx.x * BLOCK_SIZE + threadIdx.x;
+    float sum = 0.0f;
+
+    // Loop over all tiles in the K dimension
+    for (int tile = 0; tile < (K + BLOCK_SIZE - 1) / BLOCK_SIZE ; tile++) {
+
+        // Load tiles into shared memory
+        int tile_col = tile * BLOCK_SIZE + threadIdx.x;
+        int tile_row = tile * BLOCK_SIZE + threadIdx.y;
+        
+        if (row < M && tile_col < K) {
+            tile_A[threadIdx.y][threadIdx.x] = A[row * K + tile_col];
+        } else {
+            tile_A[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+        
+        if (tile_row < K && col < N) {
+            tile_B[threadIdx.y][threadIdx.x] = B[tile_row * N + col];
+        } else {
+            tile_B[threadIdx.y][threadIdx.x] = 0.0f;
+        }
+
+        // Synchronize to make sure all threads have finished loading their tile
+        __syncthreads();
+        
+        // Compute partial sum for this tile
+        #pragma unroll
+        for (int k = 0; k < BLOCK_SIZE; k++) {
+            sum += tile_A[threadIdx.y][k] * tile_B[k][threadIdx.x];
+        }
+        
+        // Synchronize to make sure all threads have finished calculating 
+        // before we overwrite tile_A and tile_B in the next iteration
+        __syncthreads();
+    }
+    
+    // Write result
+    if (row < M && col < N) {
+        C[row * N + col] = sum;
+    }
 }
 
 inline void launch_naive_gemm(const float* d_a,
@@ -75,11 +120,12 @@ inline void launch_tiled_gemm(const float* d_a,
     [[maybe_unused]] dim3 block(BLOCK_SIZE, BLOCK_SIZE, 1);
     dim3 grid = make_grid(M, N);
     /* TODO(student): launch gemm_tiled_kernel and check for errors. */
-    (void)d_a;
-    (void)d_b;
-    (void)d_c;
-    (void)grid;
-    (void)block;
-    (void)stream;
+    gemm_tiled_kernel<<<grid, block, 0, stream >>>(d_a, d_b, d_c, M, N, K);
+    // (void)d_a;
+    // (void)d_b;
+    // (void)d_c;
+    // (void)grid;
+    // (void)block;
+    // (void)stream;
 }
 
