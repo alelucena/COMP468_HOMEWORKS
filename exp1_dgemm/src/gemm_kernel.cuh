@@ -2,7 +2,7 @@
 
 #include <cuda_runtime.h>
 
-constexpr int BLOCK_SIZE = 32;
+constexpr int BLOCK_SIZE = 64;
 
 inline dim3 make_grid(int m, int n) {
     return dim3((n + BLOCK_SIZE - 1) / BLOCK_SIZE,
