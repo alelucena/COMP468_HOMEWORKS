@@ -24,10 +24,6 @@ __global__ void gemm_naive_kernel(const float* __restrict__ A,
     if (row < M && col < N) {
         float value = 0;
 
-        // POISON LINES:
-        // C[row * N + col] = 1234.56f; 
-        // return;
-
         // Dot product
         for (int k = 0; k < K; k++) {
             // A is M * K and B is K * N
@@ -85,7 +81,7 @@ __global__ void gemm_tiled_kernel(const float* __restrict__ A,
         }
         
         // Synchronize to make sure all threads have finished calculating 
-        // before we overwrite tile_A and tile_B in the next iteration
+        // before overwriting tile_A and tile_B in the next iteration
         __syncthreads();
     }
     
@@ -121,11 +117,5 @@ inline void launch_tiled_gemm(const float* d_a,
     dim3 grid = make_grid(M, N);
     /* TODO(student): launch gemm_tiled_kernel and check for errors. */
     gemm_tiled_kernel<<<grid, block, 0, stream >>>(d_a, d_b, d_c, M, N, K);
-    // (void)d_a;
-    // (void)d_b;
-    // (void)d_c;
-    // (void)grid;
-    // (void)block;
-    // (void)stream;
 }
 
