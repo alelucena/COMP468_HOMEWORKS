@@ -22,8 +22,7 @@ This mini-lab guides senior undergraduates through implementing a dense General 
 
 ### Tasks
 1. **Matrix math refresher**
-   - Derive the FLOP count `2*M*N*K` and memory footprint.
-   - Answer the pre-lab questions in your lab notebook.
+   - Derive the FLOP count `2*M*N*K` and memory footprint. (No need to submit)
 2. **Baseline host implementation (`src/main.cu`)**
    - Fill in the TODO blocks that allocate device buffers, copy data, launch kernels, and gather timing.
 3. **CUDA kernels (`src/gemm_kernel.cuh`)**
@@ -33,6 +32,7 @@ This mini-lab guides senior undergraduates through implementing a dense General 
 4. **Performance study**
    - Use `scripts/measure.sh` as a template to sweep problem sizes.
    - Compare against cuBLAS (already linked). Report GFLOP/s gap and hypothesize causes.
+   - Compare the performace across different tiling sizes (you may try 16, 32, 64, etc.).
 5. **Report**
    - Include methodology, plots, speedups, and an analysis of memory vs compute limits.
 
@@ -43,7 +43,7 @@ This mini-lab guides senior undergraduates through implementing a dense General 
 
 ### Rubric (20 pts)
 - Correctness (6) – numerical accuracy vs cuBLAS reference implementation.
-- Performance (6) – meets ≥70% of cuBLAS GFLOP/s for target sizes.
+- Performance (6) – meets >30% of cuBLAS GFLOP/s for target sizes. You should achieve clear acceleration using tiled implementation compared to the naive implementation. (Aim for your best, you are able to achieve up to 70% of the cuBLAS FLOPs but it is not required)
 - Analysis (4) – thoughtful discussion of bottlenecks.
 - Presentation (4) – report clarity and code readability.
 
@@ -57,6 +57,7 @@ This mini-lab guides senior undergraduates through implementing a dense General 
 | 5   | Finalize report & cleanup repo |
 
 ### Make Targets
+Change the compute capacity in the Makefile to match your GPU version. (`sm_80` for A100, `sm_70` for V100)
 ```bash
 make        # build bin/dgemm
 make clean  # remove build artifacts
