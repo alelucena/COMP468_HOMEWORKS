@@ -19,7 +19,7 @@ for layers in "${LAYERS[@]}"; do
       # 2>&1 ensures that the binary prints is caught even if it sent to stderr
       "$BIN" --layers "$layers" --batch "$batch" --activation "$ACTIVATION" --impl "$impl" --no-verify 2>&1 \
       | grep "Impl=" \
-      | awk -F'[= ]' '{print $2","$4","$6","$8","$10","$12}' >> "$LOG"
+|     awk -F'[= ]' -v act="$ACTIVATION" '{print $2","$6","$4","act","$8","$10}' >> "$LOG"
     done
   done
 done
