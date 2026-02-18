@@ -2,6 +2,7 @@
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
+#include <cmath>
 
 #include <string>
 #include <vector>
@@ -29,21 +30,49 @@ __global__ void bias_add_kernel(const float* __restrict__ bias,
                                 float* __restrict__ activations,
                                 LayerShape shape) {
     /* TODO(student): each thread should add the bias for its neuron across the batch. */
-    (void)bias;
-    (void)activations;
-    (void)shape;
+
+    // Init
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Boundary guard
+    if (row < shape.batch && col < shape.out_dim) {
+        // 2D -> 1D index mapping
+        size_t index = row * shape.out_dim + col;
+
+        // Apply bias - all threads in the same column use the same bias[col]
+        activations[index] += bias[col];
+    }
 }
 
 __global__ void relu_kernel(float* __restrict__ activations, size_t elements) {
     /* TODO(student): ReLU activation (set negative values to zero). */
-    (void)activations;
-    (void)elements;
+
+    // Calculate the global col index of the current thread.
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Bounday check
+    if (index < elements) {
+        // Apply ReLU activation: output is the maximum of 0.0f and the input value.
+        activations[index] = max(0.0f, activations[index]);
+    }
 }
 
 __global__ void gelu_kernel(float* __restrict__ activations, size_t elements) {
     /* TODO(student): Approximate GELU, e.g., 0.5*x*(1+tanh(...)). */
-    (void)activations;
-    (void)elements;
+
+     // Calculate the global col index of the current thread.
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // Bounday check
+    if (index < elements) {
+        float x = activations[index];
+        float sqrt_2_over_pi = 0.7978845608f;
+
+        // Apply GELU activation: 
+        activations[index] = 0.5f * x * (1.0f + tanhf(sqrt_2_over_pi * (x + 0.044715f * ( x * x * x))));
+    }
+
 }
 
 inline void launch_bias_add(const float* bias, float* activations, const LayerShape& shape, cudaStream_t stream) {
@@ -76,10 +105,32 @@ __global__ void fused_bias_activation_kernel(const float* __restrict__ bias,
                                              int activation_type) {
     /* TODO(student): fuse bias add + activation.
        activation_type: 0=ReLU, 1=GELU, extend as needed. */
-    (void)bias;
-    (void)activations;
-    (void)shape;
-    (void)activation_type;
+
+    // Init
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+
+    // Boundary guard
+    if (row < shape.batch && col < shape.out_dim) {
+        // 2D -> 1D index mapping
+        size_t index = row * shape.out_dim + col;
+
+        // Apply bias - all threads in the same column use the same bias[col]
+        float val = activations[index] + bias[col];
+
+        // Chosen activation function
+        if (activation_type == 0){
+            // ReLU
+            val = max(0.0f, val);
+        } else if (activation_type == 1) {
+            // GELU
+            float sqrt_2_over_pi = 0.7978845608f;
+            val =  0.5f * val * (1.0f + tanhf(sqrt_2_over_pi * (val + 0.044715f * ( val * val * val))));
+        }
+
+        // Final write-back
+        activations[index] = val;
+    }
 }
 
 inline void launch_fused_bias_activation(const float* bias,
@@ -102,9 +153,23 @@ inline void run_gemm_layer(const float* input,
                            cublasHandle_t handle) {
     /* TODO(student): call cublasSgemm (or StridedBatched) with the correct transpose options.
        Remember cuBLAS assumes column-major by default; consider using CUBLAS_OP_T to match row-major data. */
-    (void)input;
-    (void)weight;
-    (void)output;
-    (void)shape;
-    (void)handle;
+       
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+
+    // Cublas already sees row major data as transposed. No need to use CUBLAS_OP_T.
+    cublasSgemm(handle, 
+            CUBLAS_OP_N, CUBLAS_OP_N, 
+            shape.out_dim,   // M
+            shape.batch,     // N
+            shape.in_dim,    // K
+            &alpha, 
+            weight,          // Matrix A
+            shape.out_dim,   // lda
+            input,           // Matrix B
+            shape.in_dim,    // ldb
+            &beta, 
+            output,          // Matrix C
+            shape.out_dim);  // ldc
+
 }

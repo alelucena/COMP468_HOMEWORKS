@@ -93,15 +93,59 @@ void mlp_cpu_reference(const std::vector<int>& layers,
                        const std::string& activation) {
     /* TODO(student): implement a simple CPU forward pass (GEMM + bias + activation per layer).
        Remember that weights are stored row-major with shape [out_dim, in_dim]. */
-    (void)layers;
-    (void)batch;
-    (void)weights;
-    (void)biases;
-    (void)weight_offsets;
-    (void)bias_offsets;
-    (void)input;
-    (void)output;
-    (void)activation;
+
+    // 1. Init copy_input with the initial input data.
+    std::vector<float> copy_input = input;
+
+    // Iterate through layers:
+    for (size_t layer = 0; layer < layers.size() - 1; ++layer) {
+        // Layer transitions: 0 -> 1, 1 -> 2
+        int in_dim = layers[layer]; // row width
+        int out_dim = layers[layer + 1]; // col length
+
+         // Init buffer for layer results.
+        std::vector<float> result_input(batch * out_dim);
+
+        // 2. Perform batched GEMM
+        // weight shape: [out_dim, in_dim]
+        // input shape: [batch, in_dim]
+        // output shape: [batch, out_dim]
+
+        for (int num = 0; num < batch; ++num) {
+
+            // j-th output neuron (row)
+            for (int j = 0; j < out_dim; ++j) {
+                float c_sum = 0.0f;
+
+                // i-th input neuron (col)
+                for (int i = 0; i < in_dim; ++i) {
+                    // GEMM call: weight[j, i] + input[num, i]
+                    float w = weights[weight_offsets[layer] + j * in_dim + i];
+                    float x = copy_input[num * in_dim + i];
+                    c_sum +=  w * x;
+                }
+
+                // 3. Bias (same bias added to every sample in the batch)
+                // Bias shape: [out_dim]
+                c_sum += biases[bias_offsets[layer] + j];
+
+                // Apply Relu activation
+                if (activation == "relu") {
+                    c_sum = std::max(0.0f, c_sum);
+                }
+
+                result_input[num * out_dim + j] = c_sum;
+            }
+        }
+
+        // Continue to the next layer
+        copy_input = std::move(result_input);
+
+    }
+
+    // 5. Copy final result to output.
+    output = copy_input;
+   
 }
 
 int main(int argc, char** argv) {
@@ -124,6 +168,9 @@ int main(int argc, char** argv) {
         bias_cursor += static_cast<size_t>(out_dim);
     }
 
+
+
+
     std::vector<float> h_input(input_elems);
     std::vector<float> h_weights(weight_cursor);
     std::vector<float> h_biases(bias_cursor);
@@ -140,11 +187,27 @@ int main(int argc, char** argv) {
     float* d_weights = nullptr;
     float* d_biases = nullptr;
     /* TODO(student): allocate device buffers (activations + weights + biases) and copy host data. */
-    (void)d_input;
-    (void)d_workspace_a;
-    (void)d_workspace_b;
-    (void)d_weights;
-    (void)d_biases;
+
+
+    // Allocate device buffers
+    cudaMalloc(&d_input, input_elems * sizeof(float));
+    cudaMalloc(&d_weights, weight_cursor * sizeof(float));
+    cudaMalloc(&d_biases, bias_cursor * sizeof(float));
+
+    // Allocate two workspaces for back-and-forth. 
+    // Find max width needed for any hidden or output layer
+    size_t max_num_layers = 0;
+    for (size_t i = 1; i < opt.layers.size(); ++i) {
+        max_num_layers = std::max(max_num_layers, (size_t)batch * opt.layers[i]);
+    }
+    cudaMalloc(&d_workspace_a, max_num_layers * sizeof(float));
+    cudaMalloc(&d_workspace_b, max_num_layers * sizeof(float));
+
+    // Copy host data to device
+    cudaMemcpy(d_input, h_input.data(), input_elems * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_weights, h_weights.data(), weight_cursor * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_biases, h_biases.data(), bias_cursor * sizeof(float), cudaMemcpyHostToDevice);
+
 
     cudaEvent_t start, stop;
     check_cuda(cudaEventCreate(&start), "create start event");
@@ -156,13 +219,16 @@ int main(int argc, char** argv) {
     check_cublas(cublasCreate(&handle), "cublasCreate");
     check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
 
+    // Copy d_input into d_workspace_a
+    cudaMemcpyAsync(d_workspace_a, d_input, input_elems * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline") {
         check_cuda(cudaEventRecord(start, stream), "record baseline start");
         for (int layer = 0; layer < num_layers; ++layer) {
             LayerShape shape{batch, opt.layers[layer], opt.layers[layer + 1]};
-            const float* d_w = nullptr;  // TODO(student): offset into d_weights based on layer
-            const float* d_b = nullptr;  // TODO(student): offset into d_biases based on layer
+            const float* d_w = d_weights + weight_offsets[layer];  // TODO(student): offset into d_weights based on layer. Pointer arithmetic to jump to the correct memory address.
+            const float* d_b = d_biases + bias_offsets[layer];  // TODO(student): offset into d_biases based on layer. Pointer arithmetic to jump to the correct memory address..
             run_gemm_layer(d_workspace_a, d_w, d_workspace_b, shape, handle);
             launch_bias_add(d_b, d_workspace_b, shape, stream);
             launch_activation(opt.activation, d_workspace_b, shape, stream);
@@ -175,8 +241,8 @@ int main(int argc, char** argv) {
         check_cuda(cudaEventRecord(start, stream), "record fused start");
         for (int layer = 0; layer < num_layers; ++layer) {
             LayerShape shape{batch, opt.layers[layer], opt.layers[layer + 1]};
-            const float* d_w = nullptr;  // TODO(student)
-            const float* d_b = nullptr;  // TODO(student)
+            const float* d_w = d_weights + weight_offsets[layer]; // TODO(student)
+            const float* d_b = d_biases + bias_offsets[layer];   // TODO(student)
             run_gemm_layer(d_workspace_a, d_w, d_workspace_b, shape, handle);
             launch_fused_bias_activation(d_b, opt.activation, d_workspace_b, shape, stream);
             std::swap(d_workspace_a, d_workspace_b);
@@ -189,6 +255,8 @@ int main(int argc, char** argv) {
     }
 
     /* TODO(student): copy final activations back to h_output. */
+    cudaMemcpyAsync(h_output.data(), d_workspace_a, output_elems * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
 
     if (opt.verify) {
         mlp_cpu_reference(opt.layers,
@@ -201,6 +269,15 @@ int main(int argc, char** argv) {
                           h_ref,
                           opt.activation);
         /* TODO(student): compute max absolute difference between h_output and h_ref. */
+        float max_diff = 0.0f;
+        for (size_t i = 0; i < h_ref.size(); ++i) {
+            float diff = std::abs(h_output[i] - h_ref[i]);
+            if (diff > max_diff) {
+                max_diff = diff;
+            }
+        }
+
+        std::cout << "Max absolute difference: " << max_diff << std::endl;
     }
 
     if (elapsed_ms > 0.0f) {
@@ -219,5 +296,26 @@ int main(int argc, char** argv) {
     }
 
     /* TODO(student): cleanup (cudaFree buffers, destroy events/stream/handle). */
+
+    // Free device memory
+    cudaFree(d_input);
+    cudaFree(d_weights);
+    cudaFree(d_biases);
+    cudaFree(d_workspace_a);
+    cudaFree(d_workspace_b);
+
+    // Destroy cuBLAS handle
+    if (handle) {
+        cublasDestroy(handle);
+    }
+
+    // Destroy events
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+    // Destroy stream
+    if (stream) {
+        cudaStreamDestroy(stream);
+    }
     return 0;
 }
