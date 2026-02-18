@@ -16,7 +16,10 @@ for layers in "${LAYERS[@]}"; do
     for impl in "${IMPLS[@]}"; do
       echo "Running $impl layers=$layers batch=$batch"
       # TODO(student): parse stdout from the binary and append to the CSV.
-      "$BIN" --layers "$layers" --batch "$batch" --activation "$ACTIVATION" --impl "$impl" --no-verify
+      # 2>&1 ensures that the binary prints is caught even if it sent to stderr
+      "$BIN" --layers "$layers" --batch "$batch" --activation "$ACTIVATION" --impl "$impl" --no-verify 2>&1 \
+      | grep "Impl=" \
+      | awk -F'[= ]' '{print $2","$4","$6","$8","$10","$12}' >> "$LOG"
     done
   done
 done
