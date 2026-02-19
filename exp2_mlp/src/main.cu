@@ -122,7 +122,7 @@ void mlp_cpu_reference(const std::vector<int>& layers,
                     // GEMM call: weight[j, i] + input[num, i]
                     float w = weights[weight_offsets[layer] + j * in_dim + i];
                     float x = copy_input[num * in_dim + i];
-                    c_sum +=  std::fma(w, x, c_sum);
+                    c_sum =  std::fma(w, x, c_sum);
                 }
 
                 // 3. Bias (same bias added to every sample in the batch)
