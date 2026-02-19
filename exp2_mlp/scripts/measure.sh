@@ -9,7 +9,7 @@ ACTIVATION="relu"
 
 mkdir -p ../data
 LOG="../data/$(date +%Y%m%d_%H%M%S)_mlp_sweep.csv"
-echo "impl,layers,batch,activation,time_ms,gflops" > "$LOG"
+echo "impl,layers,batch,activation,time_ms,gflops,max_error" > "$LOG"
 
 for layers in "${LAYERS[@]}"; do
   for batch in "${BATCHES[@]}"; do
@@ -19,7 +19,7 @@ for layers in "${LAYERS[@]}"; do
       # 2>&1 ensures that the binary prints is caught even if it sent to stderr
       "$BIN" --layers "$layers" --batch "$batch" --activation "$ACTIVATION" --impl "$impl" --no-verify 2>&1 \
       | grep "Impl=" \
-|     awk -F'[= ]' -v act="$ACTIVATION" '{print $2","$6","$4","act","$8","$10}' >> "$LOG"
+|     awk -F'[= ]' -v act="$ACTIVATION" '{print $2","$6","$4","act","$8","$10","$12}' >> "$LOG"
     done
   done
 done

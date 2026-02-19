@@ -258,6 +258,7 @@ int main(int argc, char** argv) {
     cudaMemcpyAsync(h_output.data(), d_workspace_a, output_elems * sizeof(float), cudaMemcpyDeviceToHost, stream);
     cudaStreamSynchronize(stream);
 
+    float max_diff = 0.0f;
     if (opt.verify) {
         mlp_cpu_reference(opt.layers,
                           batch,
@@ -269,7 +270,6 @@ int main(int argc, char** argv) {
                           h_ref,
                           opt.activation);
         /* TODO(student): compute max absolute difference between h_output and h_ref. */
-        float max_diff = 0.0f;
         for (size_t i = 0; i < h_ref.size(); ++i) {
             float diff = std::abs(h_output[i] - h_ref[i]);
             if (diff > max_diff) {
@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        std::cout << "Max absolute difference: " << max_diff << std::endl;
+        //std::cout << "Max absolute difference: " << max_diff << std::endl;
     }
 
     if (elapsed_ms > 0.0f) {
@@ -290,7 +290,8 @@ int main(int argc, char** argv) {
             }
         }
         std::cout << " Time(ms)=" << elapsed_ms
-                  << " GFLOP/s=" << mlp_gflops(opt.layers, batch, elapsed_ms) << std::endl;
+                  << " GFLOP/s=" << mlp_gflops(opt.layers, batch, elapsed_ms) 
+                  << " Error=" << (opt.verify ? max_diff: 0.0f) << std::endl;
     } else {
         std::cout << "Forward pass executed (timing TODO incomplete)." << std::endl;
     }
