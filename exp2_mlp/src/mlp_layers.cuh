@@ -32,13 +32,12 @@ __global__ void bias_add_kernel(const float* __restrict__ bias,
     /* TODO(student): each thread should add the bias for its neuron across the batch. */
 
     // Init
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    size_t index= blockIdx.x * blockDim.x + threadIdx.x;
 
     // Boundary guard
-    if (row < shape.batch && col < shape.out_dim) {
+    if (index < (size_t)shape.batch * shape.out_dim) {
         // 2D -> 1D index mapping
-        size_t index = row * shape.out_dim + col;
+        size_t col = index % shape.out_dim;
 
         // Apply bias - all threads in the same column use the same bias[col]
         activations[index] += bias[col];
@@ -49,7 +48,7 @@ __global__ void relu_kernel(float* __restrict__ activations, size_t elements) {
     /* TODO(student): ReLU activation (set negative values to zero). */
 
     // Calculate the global col index of the current thread.
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t index = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Bounday check
     if (index < elements) {
@@ -62,7 +61,7 @@ __global__ void gelu_kernel(float* __restrict__ activations, size_t elements) {
     /* TODO(student): Approximate GELU, e.g., 0.5*x*(1+tanh(...)). */
 
      // Calculate the global col index of the current thread.
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t index = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Bounday check
     if (index < elements) {
@@ -106,14 +105,14 @@ __global__ void fused_bias_activation_kernel(const float* __restrict__ bias,
     /* TODO(student): fuse bias add + activation.
        activation_type: 0=ReLU, 1=GELU, extend as needed. */
 
-    // Init
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    // Init (1D)
+    size_t index = blockIdx.x * blockDim.x + threadIdx.x;
 
     // Boundary guard
-    if (row < shape.batch && col < shape.out_dim) {
+    if (index < (size_t) shape.batch * shape.out_dim) {
         // 2D -> 1D index mapping
-        size_t index = row * shape.out_dim + col;
+        size_t col = index % shape.out_dim; // Which neuron
+
 
         // Apply bias - all threads in the same column use the same bias[col]
         float val = activations[index] + bias[col];
