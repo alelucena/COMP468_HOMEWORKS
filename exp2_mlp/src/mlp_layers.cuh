@@ -156,19 +156,19 @@ inline void run_gemm_layer(const float* input,
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    // Cublas already sees row major data as transposed. No need to use CUBLAS_OP_T.
     cublasSgemm(handle, 
-            CUBLAS_OP_T, CUBLAS_OP_N, // Transpose the Weights (A), // Don't transpose the Input (B)
-            shape.out_dim,   // M
-            shape.batch,     // N
-            shape.in_dim,    // K
+            CUBLAS_OP_T,     // Transpose Weight (Row-major [O, I] -> Col-major [I, O])
+            CUBLAS_OP_N,     // No Transpose Input (Row-major [B, I] -> Col-major [I, B])
+            shape.out_dim,   // M: Rows of Op(A)
+            shape.batch,     // N: Cols of Op(B)
+            shape.in_dim,    // K: Cols of Op(A)
             &alpha, 
-            weight,          // Matrix A
-            shape.out_dim,   // lda
-            input,           // Matrix B
-            shape.in_dim,    // ldb
+            weight,          
+            shape.in_dim,    // lda: MUST be >= in_dim when transposing
+            input,           
+            shape.in_dim,    // ldb: Row-major [B, I] is Col-major [I, B], so leading dim is in_dim
             &beta, 
-            output,          // Matrix C
-            shape.out_dim);  // ldc
+            output,          
+            shape.out_dim);  // ldc: Leading dim is out_dim
 
 }
