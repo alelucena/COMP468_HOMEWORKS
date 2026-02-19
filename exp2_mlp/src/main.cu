@@ -115,26 +115,30 @@ void mlp_cpu_reference(const std::vector<int>& layers,
 
             // j-th output neuron (row)
             for (int j = 0; j < out_dim; ++j) {
-                float c_sum = 0.0f;
+                double c_sum = 0.0f;
 
                 // i-th input neuron (col)
                 for (int i = 0; i < in_dim; ++i) {
                     // GEMM call: weight[j, i] + input[num, i]
                     float w = weights[weight_offsets[layer] + j * in_dim + i];
                     float x = copy_input[num * in_dim + i];
-                    c_sum =  std::fma(w, x, c_sum);
+                    c_sum =  std::fma((double)w, (double)x, c_sum);
                 }
 
                 // 3. Bias (same bias added to every sample in the batch)
                 // Bias shape: [out_dim]
-                c_sum += biases[bias_offsets[layer] + j];
+                c_sum += (double)biases[bias_offsets[layer] + j];
 
                 // Apply Relu activation
                 if (activation == "relu") {
                     c_sum = std::max(0.0f, c_sum);
+                } else if (activation == "gelu") {
+                    // Match the GPU's approximate GELU formula exactly
+                    const double sqrt_2_over_pi = 0.7978845608;
+                    c_sum = 0.5 * c_sum * (1.0 + std::tanh(sqrt_2_over_pi * (c_sum + 0.044715 * (c_sum * c_sum * c_sum))));
                 }
 
-                result_input[num * out_dim + j] = c_sum;
+                result_input[num * out_dim + j] = static_cast<float>(c_sum);
             }
         }
 
