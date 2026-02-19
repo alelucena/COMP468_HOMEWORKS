@@ -290,8 +290,7 @@ int main(int argc, char** argv) {
             }
         }
         std::cout << " Time(ms)=" << elapsed_ms
-                  << " GFLOP/s=" << mlp_gflops(opt.layers, batch, elapsed_ms) 
-                  << " Error=" << (opt.verify ? max_diff: 0.0f) << std::endl;
+                  << " GFLOP/s=" << mlp_gflops(opt.layers, batch, elapsed_ms) << std::endl;
     } else {
         std::cout << "Forward pass executed (timing TODO incomplete)." << std::endl;
     }
