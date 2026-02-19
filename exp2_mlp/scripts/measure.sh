@@ -9,7 +9,7 @@ ACTIVATION="relu"
 
 mkdir -p ../data
 LOG="../data/$(date +%Y%m%d_%H%M%S)_mlp_sweep.csv"
-echo "impl,layers,batch,activation,time_ms,gflops,max_error" > "$LOG"
+echo "impl,layers,batch,activation,time_ms,gflops" > "$LOG"
 
 for layers in "${LAYERS[@]}"; do
   for batch in "${BATCHES[@]}"; do
