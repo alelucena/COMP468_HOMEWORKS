@@ -131,7 +131,7 @@ void mlp_cpu_reference(const std::vector<int>& layers,
 
                 // Apply Relu activation
                 if (activation == "relu") {
-                    c_sum = std::max(0.0f, c_sum);
+                    c_sum = std::max(0.0, c_sum);
                 } else if (activation == "gelu") {
                     // Match the GPU's approximate GELU formula exactly
                     const double sqrt_2_over_pi = 0.7978845608;
