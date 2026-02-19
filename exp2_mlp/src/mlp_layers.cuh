@@ -158,7 +158,7 @@ inline void run_gemm_layer(const float* input,
 
     // Cublas already sees row major data as transposed. No need to use CUBLAS_OP_T.
     cublasSgemm(handle, 
-            CUBLAS_OP_N, CUBLAS_OP_N, 
+            CUBLAS_OP_T, CUBLAS_OP_N, // Transpose the Weights (A), // Don't transpose the Input (B)
             shape.out_dim,   // M
             shape.batch,     // N
             shape.in_dim,    // K
