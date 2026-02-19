@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
             }
         }
 
-        //std::cout << "Max absolute difference: " << max_diff << std::endl;
+        std::cout << "Max absolute difference: " << max_diff << std::endl;
     }
 
     if (elapsed_ms > 0.0f) {
