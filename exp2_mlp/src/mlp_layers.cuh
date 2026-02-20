@@ -205,12 +205,15 @@ __global__ void bias_add_kernel(const float* __restrict__ bias,
                                 float* __restrict__ activations,
                                 LayerShape shape) {
     /* TODO(student): each thread should add the bias for its neuron across the batch. */
-    int row = blockIdx.y * blockDim.y + threadIdx.y; // Batch index
-    int col = blockIdx.x * blockDim.x + threadIdx.x; // Neuron index
+    size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    size_t total_elements = (size_t)shape.batch * shape.out_dim;
 
-    if (row < shape.batch && col < shape.out_dim) {
-        size_t idx = (size_t)row * shape.out_dim + col;
-        activations[idx] += bias[col];
+    if (index < total_elements) {
+        // Correctly map 1D index to Row-Major 2D coordinates
+        // Row = index / width, Col = index % width
+        int col = index % shape.out_dim; 
+        
+        activations[index] += bias[col];
     }
 }
 
@@ -260,23 +263,23 @@ __global__ void fused_bias_activation_kernel(const float* __restrict__ bias,
                                              int activation_type) {
     /* TODO(student): fuse bias add + activation.
        activation_type: 0=ReLU, 1=GELU, extend as needed. */
-    
     size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
     size_t total_elements = (size_t)shape.batch * shape.out_dim;
 
     if (index < total_elements) {
-        // Optimization: Replace modulo (%) with fixed-point math or simpler logic 
-        // to find the bias index (column index) while keeping the 1D launch.
-        size_t col = index % shape.out_dim; 
-
+        int col = index % shape.out_dim;
+        
+        // Apply bias
         float val = activations[index] + bias[col];
 
+        // Apply activation
         if (activation_type == 0) {
             val = max(0.0f, val);
         } else if (activation_type == 1) {
             const float sqrt_2_over_pi = 0.7978845608f;
             val = 0.5f * val * (1.0f + tanhf(sqrt_2_over_pi * (val + 0.044715f * (val * val * val))));
         }
+        
         activations[index] = val;
     }
 }
