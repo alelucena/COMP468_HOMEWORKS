@@ -31,16 +31,12 @@ __global__ void bias_add_kernel(const float* __restrict__ bias,
                                 LayerShape shape) {
     /* TODO(student): each thread should add the bias for its neuron across the batch. */
 
-    // Init
-    size_t index= blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y; // Batch index
+    int col = blockIdx.x * blockDim.x + threadIdx.x; // Neuron index
 
-    // Boundary guard
-    if (index < (size_t)shape.batch * shape.out_dim) {
-        // 2D -> 1D index mapping
-        size_t col = index % shape.out_dim;
-
-        // Apply bias - all threads in the same column use the same bias[col]
-        activations[index] += bias[col];
+    if (row < shape.batch && col < shape.out_dim) {
+        size_t idx = (size_t)row * shape.out_dim + col;
+        activations[idx] += bias[col];
     }
 }
 
