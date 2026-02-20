@@ -311,7 +311,7 @@ inline void run_gemm_layer(const float* input,
     // To get Output = Input * Weight^T:
     // We compute C^T = (Input * Weight^T)^T = Weight * Input^T
     
-    check_cublas(cublasSgemm(handle, 
+   cublasSgemm(handle, 
                 CUBLAS_OP_T,     // Transpose A (Weight): [Out, In] Row -> [In, Out] Col
                 CUBLAS_OP_N,     // No Transpose B (Input): [Batch, In] Row is [In, Batch] Col
                 shape.out_dim,   // M: Rows of Op(A) and C
@@ -324,6 +324,6 @@ inline void run_gemm_layer(const float* input,
                 shape.in_dim,    // ldb: row-width of input
                 &beta, 
                 output, 
-                shape.out_dim),  // ldc: row-width of output
-                "cublasSgemm failed");
+                shape.out_dim);  // ldc: row-width of output
+                
 }
