@@ -553,8 +553,8 @@ int main(int argc, char** argv) {
     check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
 
     // --- ADDED: GPU WARM UP ---
-    // Perform 20 iterations to ramp up GPU clocks and initialize cuBLAS
-    for (int i = 0; i < 20; ++i) {
+    // Perform 100 iterations to ramp up GPU clocks and initialize cuBLAS
+    for (int i = 0; i < 100; ++i) {
         float* cur_ws_a = d_workspace_a;
         float* cur_ws_b = d_workspace_b;
         cudaMemcpyAsync(cur_ws_a, d_input, input_elems * sizeof(float), cudaMemcpyDeviceToDevice, stream);
