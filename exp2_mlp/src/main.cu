@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
 
     cublasHandle_t handle;
     check_cublas(cublasCreate(&handle), "cublasCreate");
-    cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH);
+    //cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH);
     check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
 
     // Copy d_input into d_workspace_a
