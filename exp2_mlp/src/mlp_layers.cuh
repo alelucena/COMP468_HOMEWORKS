@@ -299,23 +299,31 @@ inline void run_gemm_layer(const float* input,
                            float* output,
                            const LayerShape& shape,
                            cublasHandle_t handle) {
-    /* TODO(student): call cublasSgemm (or StridedBatched) with the correct transpose options.
-       Remember cuBLAS assumes column-major by default; consider using CUBLAS_OP_T to match row-major data. */
+    /* TODO(student): call cublasSgemm (or StridedBatched) with the correct transpose options. */
+       
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    // Standard cuBLAS approach for Row-Major MLP:
-    // We want Output [Batch, Out] = Input [Batch, In] * Weight^T [In, Out]
-    // cuBLAS (Col-Major) sees this as: Output^T [Out, Batch] = Weight [Out, In] * Input^T [In, Batch]
-    cublasSgemm(handle, 
-                CUBLAS_OP_T,     // Transpose Weight: [Out, In] -> [In, Out]
-                CUBLAS_OP_N,     // No Transpose Input: Treated as [In, Batch]
-                shape.out_dim,   // M
-                shape.batch,     // N
-                shape.in_dim,    // K
+    // A: Weight [Out, In] (Row-major) -> Treated as [In, Out] (Col-major)
+    // B: Input  [Batch, In] (Row-major) -> Treated as [In, Batch] (Col-major)
+    // C: Output [Batch, Out] (Row-major) -> Treated as [Out, Batch] (Col-major)
+    
+    // To get Output = Input * Weight^T:
+    // We compute C^T = (Input * Weight^T)^T = Weight * Input^T
+    
+    check_cublas(cublasSgemm(handle, 
+                CUBLAS_OP_T,     // Transpose A (Weight): [Out, In] Row -> [In, Out] Col
+                CUBLAS_OP_N,     // No Transpose B (Input): [Batch, In] Row is [In, Batch] Col
+                shape.out_dim,   // M: Rows of Op(A) and C
+                shape.batch,     // N: Columns of Op(B) and C
+                shape.in_dim,    // K: Columns of Op(A) / Rows of Op(B)
                 &alpha, 
-                weight, shape.in_dim, 
-                input, shape.in_dim, 
+                weight, 
+                shape.in_dim,    // lda: row-width of weight
+                input, 
+                shape.in_dim,    // ldb: row-width of input
                 &beta, 
-                output, shape.out_dim);
+                output, 
+                shape.out_dim),  // ldc: row-width of output
+                "cublasSgemm failed");
 }
