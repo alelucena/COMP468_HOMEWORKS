@@ -226,6 +226,29 @@ int main(int argc, char** argv) {
    
     check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
 
+    // --- WARM UP ---
+    // Perform 10 iterations to ramp up GPU clocks and initialize cuBLAS
+    for (int i = 0; i < 10; ++i) {
+        float* cur_ws_a = d_workspace_a;
+        float* cur_ws_b = d_workspace_b;
+        cudaMemcpyAsync(cur_ws_a, d_input, input_elems * sizeof(float), cudaMemcpyDeviceToDevice, stream);
+        for (int layer = 0; layer < num_layers; ++layer) {
+            LayerShape shape{batch, opt.layers[layer], opt.layers[layer + 1]};
+            const float* d_w = d_weights + weight_offsets[layer];
+            const float* d_b = d_biases + bias_offsets[layer];
+            run_gemm_layer(cur_ws_a, d_w, cur_ws_b, shape, handle);
+            if (opt.impl == "baseline") {
+                launch_bias_add(d_b, cur_ws_b, shape, stream);
+                launch_activation(opt.activation, cur_ws_b, shape, stream);
+            } else {
+                launch_fused_bias_activation(d_b, opt.activation, cur_ws_b, shape, stream);
+            }
+            std::swap(cur_ws_a, cur_ws_b);
+        }
+    }
+    cudaStreamSynchronize(stream);
+    // ---------
+
     // Copy d_input into d_workspace_a
     cudaMemcpyAsync(d_workspace_a, d_input, input_elems * sizeof(float), cudaMemcpyDeviceToDevice, stream);
 
@@ -305,7 +328,7 @@ int main(int argc, char** argv) {
     cublasDestroy(handle);
     cudaEventDestroy(start); cudaEventDestroy(stop);
     cudaStreamDestroy(stream);
-    
+
     return 0;
 }
 
