@@ -30,13 +30,15 @@ __global__ void bias_add_kernel(const float* __restrict__ bias,
                                 float* __restrict__ activations,
                                 LayerShape shape) {
     /* TODO(student): each thread should add the bias for its neuron across the batch. */
+    size_t index = (size_t)blockIdx.x * blockDim.x + threadIdx.x;
+    size_t total_elements = (size_t)shape.batch * shape.out_dim;
 
-    int row = blockIdx.y * blockDim.y + threadIdx.y; // Batch index
-    int col = blockIdx.x * blockDim.x + threadIdx.x; // Neuron index
-
-    if (row < shape.batch && col < shape.out_dim) {
-        size_t idx = (size_t)row * shape.out_dim + col;
-        activations[idx] += bias[col];
+    if (index < total_elements) {
+        // Map 1D index to Row-Major 2D coordinates
+        // Row = index / width, Col = index % width
+        int col = index % shape.out_dim; 
+        
+        activations[index] += bias[col];
     }
 }
 
@@ -152,20 +154,27 @@ inline void run_gemm_layer(const float* input,
     const float alpha = 1.0f;
     const float beta = 0.0f;
 
-    cublasSgemm(handle, 
-            CUBLAS_OP_T,     // Transpose Weight (Row-major [O, I] -> Col-major [I, O])
-            CUBLAS_OP_N,     // No Transpose Input (Row-major [B, I] -> Col-major [I, B])
-            shape.out_dim,   // M: Rows of Op(A)
-            shape.batch,     // N: Cols of Op(B)
-            shape.in_dim,    // K: Cols of Op(A)
-            &alpha, 
-            weight,          
-            shape.in_dim,    // lda: MUST be >= in_dim when transposing
-            input,           
-            shape.in_dim,    // ldb: Row-major [B, I] is Col-major [I, B], so leading dim is in_dim
-            &beta, 
-            output,          
-            shape.out_dim);  // ldc: Leading dim is out_dim
+    // A: Weight [Out, In] (Row-major) -> CUBLAS sees [In, Out] (Col-major)
+    // B: Input  [Batch, In] (Row-major) -> CUBLAS sees [In, Batch] (Col-major)
+    // C: Output [Batch, Out] (Row-major) -> CUBLAS sees [Out, Batch] (Col-major)
+    
+    // To get Output = Input * Weight^T:
+    // We compute C^T = (Input * Weight^T)^T = Weight * Input^T
+    
+   cublasSgemm(handle, 
+                CUBLAS_OP_T,     // Transpose A (Weight): [Out, In] Row -> [In, Out] Col
+                CUBLAS_OP_N,     // No Transpose B (Input): [Batch, In] Row is [In, Batch] Col
+                shape.out_dim,   // M: Rows of Op(A) and C
+                shape.batch,     // N: Columns of Op(B) and C
+                shape.in_dim,    // K: Columns of Op(A) / Rows of Op(B)
+                &alpha, 
+                weight, 
+                shape.in_dim,    // lda: row-width of weight
+                input, 
+                shape.in_dim,    // ldb: row-width of input
+                &beta, 
+                output, 
+                shape.out_dim);  // ldc: row-width of output
 
 }
 
@@ -307,9 +316,9 @@ inline void run_gemm_layer(const float* input,
 //     const float alpha = 1.0f;
 //     const float beta = 0.0f;
 
-//     // A: Weight [Out, In] (Row-major) -> Treated as [In, Out] (Col-major)
-//     // B: Input  [Batch, In] (Row-major) -> Treated as [In, Batch] (Col-major)
-//     // C: Output [Batch, Out] (Row-major) -> Treated as [Out, Batch] (Col-major)
+//     // A: Weight [Out, In] (Row-major) -> CUBLAS sees [In, Out] (Col-major)
+//     // B: Input  [Batch, In] (Row-major) -> CUBLAS sees [In, Batch] (Col-major)
+//     // C: Output [Batch, Out] (Row-major) -> CUBLAS sees [Out, Batch] (Col-major)
     
 //     // To get Output = Input * Weight^T:
 //     // We compute C^T = (Input * Weight^T)^T = Weight * Input^T
