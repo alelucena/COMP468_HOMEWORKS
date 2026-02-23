@@ -111,7 +111,6 @@ __global__ void fused_bias_activation_kernel(const float* __restrict__ bias,
         // 2D -> 1D index mapping
         size_t col = index % shape.out_dim; // Which neuron
 
-
         // Apply bias - all threads in the same column use the same bias[col]
         float val = activations[index] + bias[col];
 
@@ -159,7 +158,7 @@ inline void run_gemm_layer(const float* input,
     // C: Output [Batch, Out] (Row-major) -> CUBLAS sees [Out, Batch] (Col-major)
     
     // Goal: Output = Input * Weight^T:
-    // Compute C^T = (Input * Weight^T)^T = Weight * Input^T
+    // Compute Output^T = (Input * Weight^T)^T = Weight * Input^T
     
    cublasSgemm(handle, 
                 CUBLAS_OP_T,     // Transpose A (Weight): [Out, In] Row -> [In, Out] Col
