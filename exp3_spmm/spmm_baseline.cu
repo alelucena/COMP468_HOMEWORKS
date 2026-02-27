@@ -42,20 +42,32 @@ __global__ void spmm_csr_row_kernel(
     if (row >= M) return;
 
     // TODO (student): Initialize output row C[row, :]
+    for (int j = 0; j < N; j++) {
+        d_C[row * N + j] = 0.0f;
+    }
 
 
     // Find nonzero range
     int start, end;
-    // TODO (student): load start, end 
+    // TODO (student): load start, end  (range logic)
+    start = d_row_ptr[row];
+    end = d_row_ptr[row + 1];
 
-    // Loop over nonzeros in this row
+    // Loop over nonzeros in this row (iterates through the Value and Col arrays for the slice belonging to this thread's row)
+    for (int i = start; i < end; i++)
     // TODO (student): 
     {
         // TODO (student): retrieve column index k 
+        int k = d_col_idx[i]; // which row of matrix B to multiply by.
         // TODO (student): retrieve value v 
+        float v = d_vals[i]; // the value from matrix A.
 
         // TODO (student): loop over all columns j of output (0..N-1)
         //                 and accumulate:
+        for (int j = 0; j < N; j++) {
+            // For every nnz value "v" at A[row, k], multiply it by the entire k-th row of B and add it to the rowth-th row of C.
+            d_C[row * N + j] += v * d_B[k * N + j];
+        }
        
     }
 }

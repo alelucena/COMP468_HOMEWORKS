@@ -25,23 +25,36 @@ __global__ void spmm_csr_warp_kernel(
     float_t* __restrict__ d_C)
 {
     int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int warp = global_tid / 32;
-    int lane = threadIdx.x % 32;
+    int warp = global_tid / 32; // All 32 threads in the warp get the same row index.
+    int lane = threadIdx.x % 32; // Each thread's unique ID within its warp
 
     if (warp >= M) return;
     int row = warp;
 
     // TODO (student): get start = d_row_ptr[row], end = d_row_ptr[row+1]
+    int start = d_row_ptr[row];
+    int end = d_row_ptr[row + 1];
 
-    // Loop over columns j assigned to this lane
+    // Loop over columns j assigned to this lane 
+    // Warp handles columns 
     for (int j = lane; j < N; j += 32) {
 
         float_t sum = 0.0f;
 
         // TODO (student): loop over nonzeros in this row
+        for (int i = start; i < end; i++) {
+
+             int k = d_col_idx[i]; // which row of matrix B to multiply by (column index in A).
+
+            // TODO (student): retrieve value v 
+            float_t v = d_vals[i]; // the nnz value from matrix A.
+
+            sum += v * d_B[k * N + j];
+        }
 
 
         // TODO (student): write result to d_C
+        d_C[row * N + j] = sum;
     }
 }
 
