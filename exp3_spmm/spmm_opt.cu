@@ -32,21 +32,15 @@ __global__ void spmm_csr_warp_kernel(
     if (warp >= M) return;
     int row = warp;
 
-    // --- DEBUG LINE START ---
-    if (row == 0 && lane == 0) {
-        printf("GPU DEBUG: B[0]=%f, d_row_ptr[1]=%d, d_vals[0]=%f\n", d_B[0], d_row_ptr[1], d_vals[0]);
-    }
-    //
+    // // Initialize the output row
+    // // Each thread in the warp zeroes out only its assigned columns
+    // for (int j = lane; j < N; j += 32) {
+    //     d_C[(size_t)row * N + j] = 0.0f;
+    // }
 
-    // Initialize the output row
-    // Each thread in the warp zeroes out only its assigned columns
-    for (int j = lane; j < N; j += 32) {
-        d_C[(size_t)row * N + j] = 0.0f;
-    }
-
-    // Synchronization
-    // Ensure all threads finished zeroing before accumulation starts
-    __syncwarp();
+    // // Synchronization
+    // // Ensure all threads finished zeroing before accumulation starts
+    // __syncwarp();
 
     // TODO (student): get start = d_row_ptr[row], end = d_row_ptr[row+1]
     int start = d_row_ptr[row];
@@ -100,9 +94,9 @@ int main() {
     // CPU reference
     std::vector<float> C_ref;
     spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
-    std::cout << "CPU Ref [0]: " << C_ref[0] << " B[0]: " << B[0] << std::endl;
+    //std::cout << "CPU Ref [0]: " << C_ref[0] << " B[0]: " << B[0] << std::endl;
 
-        // Copy to device
+    // Copy to device
     int *d_row_ptr, *d_col_idx;
     float *d_vals, *d_B, *d_C;
     cudaMalloc(&d_row_ptr, (M+1)*sizeof(int));
@@ -134,7 +128,7 @@ int main() {
     );
 
     // ADD THIS LINE TO SEE THE PRINTF
-    cudaDeviceSynchronize();
+    //cudaDeviceSynchronize();
 
     // Copy result back
     std::vector<float> C((size_t)M * N);
