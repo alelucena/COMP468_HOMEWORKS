@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     unsigned seed = 1234;
 
     std::vector<int> row_ptr, col_idx;
-    std::vector<float> vals;
+    std::vector<float_t> vals;
     generate_random_csr(M, K, density, row_ptr, col_idx, vals, seed);
     int nnz = row_ptr.back();
     std::cout << "nnz = " << nnz << "\\n";
