@@ -41,7 +41,7 @@ __global__ void spmm_csr_warp_kernel(
     // Initialize the output row
     // Each thread in the warp zeroes out only its assigned columns
     for (int j = lane; j < N; j += 32) {
-        d_C[row * N + j] = 0.0f;
+        d_C[(size_t)row * N + j] = 0.0f;
     }
 
     // Synchronization
@@ -66,12 +66,12 @@ __global__ void spmm_csr_warp_kernel(
             // TODO (student): retrieve value v 
             float_t v = d_vals[i]; // the nnz value from matrix A.
 
-            sum += v * d_B[k * N + j];
+            sum += v * d_B[(size_t)k * N + j];
         }
 
 
         // TODO (student): write result to d_C
-        d_C[row * N + j] = sum;
+        d_C[(size_t)row * N + j] = sum;
     }
 }
 
@@ -119,6 +119,9 @@ int main() {
     int block = 256; // 每个 Block 有 256 个线程 (即 8 个 Warps)
     long long total_threads_needed = (long long)M * 32;
     int grid = (total_threads_needed + block - 1) / block;
+
+    // clean up
+    cudaMemset(d_C, 0, (size_t)M * N * sizeof(float));
     std::cout << "Launching Kernel with Grid=" << grid << ", Block=" << block << "\n";
 
     spmm_csr_warp_kernel<<<grid, block>>>(
@@ -129,6 +132,9 @@ int main() {
         d_B,
         d_C
     );
+
+    // ADD THIS LINE TO SEE THE PRINTF
+    cudaDeviceSynchronize();
 
     // Copy result back
     std::vector<float> C((size_t)M * N);

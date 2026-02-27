@@ -44,7 +44,7 @@ __global__ void spmm_csr_row_kernel(
 
     // TODO (student): Initialize output row C[row, :]
     for (int j = 0; j < N; j++) {
-        d_C[row * N + j] = 0.0f;
+        d_C[(size_t)row * N + j] = 0.0f;
     }
 
 
@@ -67,7 +67,7 @@ __global__ void spmm_csr_row_kernel(
         //                 and accumulate:
         for (int j = 0; j < N; j++) {
             // For every nnz value "v" at A[row, k], multiply it by the entire k-th row of B and add it to the rowth-th row of C.
-            d_C[row * N + j] += v * d_B[k * N + j];
+            d_C[(size_t)row * N + j] += v * d_B[(size_t)k * N + j];
         }
        
     }
@@ -115,6 +115,9 @@ int main(int argc, char** argv) {
     int block = 256;
     int grid = (M + block - 1) / block;
 
+    // clean up
+    cudaMemset(d_C, 0, (size_t)M * N * sizeof(float));
+    
     spmm_csr_row_kernel<<<grid, block>>>(M, N, d_row_ptr, d_col_idx, d_vals, d_B, d_C);
     cudaDeviceSynchronize();
 
