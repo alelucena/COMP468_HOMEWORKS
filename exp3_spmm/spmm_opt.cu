@@ -32,6 +32,16 @@ __global__ void spmm_csr_warp_kernel(
     if (warp >= M) return;
     int row = warp;
 
+    // Initialize the output row
+    // Each thread in the warp zeroes out only its assigned columns
+    for (int j = lane; j < N; j += 32) {
+        d_C[row * N + j] = 0.0f;
+    }
+
+    // Synchronization
+    // Ensure all threads finished zeroing before accumulation starts
+    __syncwarp();
+
     // TODO (student): get start = d_row_ptr[row], end = d_row_ptr[row+1]
     int start = d_row_ptr[row];
     int end = d_row_ptr[row + 1];
