@@ -65,6 +65,7 @@ __global__ void spmm_csr_row_kernel(
 int main(int argc, char** argv) {
     int M = 512, K = 512, N = 64;
     double density = 0.01;
+    if (argc > 1) density = std::atof(argv[1]);
     unsigned seed = 1234;
 
     std::vector<int> row_ptr, col_idx;
@@ -96,15 +97,35 @@ int main(int argc, char** argv) {
     cudaMemcpy(d_vals, vals.data(), nnz*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, B.data(), (size_t)K*N*sizeof(float), cudaMemcpyHostToDevice);
 
+    // --- TIMING START ---
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
     // Launch incomplete student kernel
     int block = 256;
     int grid = (M + block - 1) / block;
 
-    // clean up
-    cudaMemset(d_C, 0, (size_t)M * N * sizeof(float));
-
+    // Warmup launch (optional but recommended for stable numbers)
     spmm_csr_row_kernel<<<grid, block>>>(M, N, d_row_ptr, d_col_idx, d_vals, d_B, d_C);
-    cudaDeviceSynchronize();
+    cudaDeviceSynchronize();    
+
+
+    cudaEventRecord(start);
+    spmm_csr_row_kernel<<<grid, block>>>(M, N, d_row_ptr, d_col_idx, d_vals, d_B, d_C);
+
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    // --- TIMING END ---
+
+    // GFLOPS calculation: (2 * nnz * N) operations
+    double seconds = milliseconds / 1000.0;
+    double gflops = (2.0 * nnz * N) / (seconds * 1e9);
+
+    std::cout << "Density: " << density << " | NNZ: " << nnz << "\\n";
+    std::cout << "Throughput: " << gflops << " GFLOPS\\n";
 
     // Copy back
     std::vector<float> C((size_t)M*N);
