@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 #include <iostream>
 #include <vector>
+#include "spmm_ref.cpp"
 using float_t = float;
 
 /*
