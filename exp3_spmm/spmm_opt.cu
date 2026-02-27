@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     double gflops = (2.0 * nnz * N) / (seconds * 1e9);
 
     std::cout << "Density: " << density << " | NNZ: " << nnz << "\n";
-    std::cout << "Throughput: " << gflops << " GFLOPS" << "\n"l;
+    std::cout << "Throughput: " << gflops << " GFLOPS" << "\n";
 
     // Copy result back
     std::vector<float> C((size_t)M * N);
