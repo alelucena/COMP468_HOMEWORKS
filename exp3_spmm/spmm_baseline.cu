@@ -32,47 +32,6 @@ using float_t = float;
    - Compute C[row, j] += value * B[k, j]
 ===============================================================
 */
-// __global__ void spmm_csr_row_kernel(
-//     int M, int N,
-//     const int* __restrict__ d_row_ptr,
-//     const int* __restrict__ d_col_idx,
-//     const float_t* __restrict__ d_vals,
-//     const float_t* __restrict__ d_B,
-//     float_t* __restrict__ d_C) 
-// {
-//     int row = blockIdx.x * blockDim.x + threadIdx.x;
-//     if (row >= M) return;
-
-//     // TODO (student): Initialize output row C[row, :]
-//     for (int j = 0; j < N; j++) {
-//         d_C[(size_t)row * N + j] = 0.0f;
-//     }
-
-
-//     // Find nonzero range
-//     int start, end;
-//     // TODO (student): load start, end  (range logic)
-//     start = d_row_ptr[row];
-//     end = d_row_ptr[row + 1];
-
-//     // Loop over nonzeros in this row (iterates through the Value and Col arrays for the slice belonging to this thread's row)
-//     for (int i = start; i < end; i++)
-//     // TODO (student): 
-//     {
-//         // TODO (student): retrieve column index k 
-//         int k = d_col_idx[i]; // which row of matrix B to multiply by.
-//         // TODO (student): retrieve value v 
-//         float v = d_vals[i]; // the value from matrix A.
-
-//         // TODO (student): loop over all columns j of output (0..N-1)
-//         //                 and accumulate:
-//         for (int j = 0; j < N; j++) {
-//             // For every nnz value "v" at A[row, k], multiply it by the entire k-th row of B and add it to the rowth-th row of C.
-//             d_C[(size_t)row * N + j] += v * d_B[(size_t)k * N + j];
-//         }
-       
-//     }
-// }
 __global__ void spmm_csr_row_kernel(
     int M, int N,
     const int* __restrict__ d_row_ptr,
@@ -84,22 +43,63 @@ __global__ void spmm_csr_row_kernel(
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     if (row >= M) return;
 
-    // Use a local buffer or registers if N is small, 
-    // but for N=64, we can just process each j one by one to ensure max precision.
+    // TODO (student): Initialize output row C[row, :]
     for (int j = 0; j < N; j++) {
-        float_t sum = 0.0f;
-        int start = d_row_ptr[row];
-        int end = d_row_ptr[row + 1];
+        d_C[(size_t)row * N + j] = 0.0f;
+    }
 
-        for (int i = start; i < end; i++) {
-            int k = d_col_idx[i];
-            float_t v = d_vals[i];
-            sum += v * d_B[(size_t)k * N + j];
+
+    // Find nonzero range
+    int start, end;
+    // TODO (student): load start, end  (range logic)
+    start = d_row_ptr[row];
+    end = d_row_ptr[row + 1];
+
+    // Loop over nonzeros in this row (iterates through the Value and Col arrays for the slice belonging to this thread's row)
+    for (int i = start; i < end; i++)
+    // TODO (student): 
+    {
+        // TODO (student): retrieve column index k 
+        int k = d_col_idx[i]; // which row of matrix B to multiply by.
+        // TODO (student): retrieve value v 
+        float v = d_vals[i]; // the value from matrix A.
+
+        // TODO (student): loop over all columns j of output (0..N-1)
+        //                 and accumulate:
+        for (int j = 0; j < N; j++) {
+            // For every nnz value "v" at A[row, k], multiply it by the entire k-th row of B and add it to the rowth-th row of C.
+            d_C[(size_t)row * N + j] += v * d_B[(size_t)k * N + j];
         }
-        // Direct assignment is much more accurate than repeated += in global memory
-        d_C[(size_t)row * N + j] = sum;
+       
     }
 }
+// __global__ void spmm_csr_row_kernel(
+//     int M, int N,
+//     const int* __restrict__ d_row_ptr,
+//     const int* __restrict__ d_col_idx,
+//     const float_t* __restrict__ d_vals,
+//     const float_t* __restrict__ d_B,
+//     float_t* __restrict__ d_C) 
+// {
+//     int row = blockIdx.x * blockDim.x + threadIdx.x;
+//     if (row >= M) return;
+
+//     // Use a local buffer or registers if N is small, 
+//     // but for N=64, we can just process each j one by one to ensure max precision.
+//     for (int j = 0; j < N; j++) {
+//         float_t sum = 0.0f;
+//         int start = d_row_ptr[row];
+//         int end = d_row_ptr[row + 1];
+
+//         for (int i = start; i < end; i++) {
+//             int k = d_col_idx[i];
+//             float_t v = d_vals[i];
+//             sum += v * d_B[(size_t)k * N + j];
+//         }
+//         // Direct assignment is much more accurate than repeated += in global memory
+//         d_C[(size_t)row * N + j] = sum;
+//     }
+// }
 
 /*
 ===============================================================
