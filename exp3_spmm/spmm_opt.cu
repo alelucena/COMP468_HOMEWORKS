@@ -32,16 +32,6 @@ __global__ void spmm_csr_warp_kernel(
     if (warp >= M) return;
     int row = warp;
 
-    // // Initialize the output row
-    // // Each thread in the warp zeroes out only its assigned columns
-    // for (int j = lane; j < N; j += 32) {
-    //     d_C[(size_t)row * N + j] = 0.0f;
-    // }
-
-    // // Synchronization
-    // // Ensure all threads finished zeroing before accumulation starts
-    // __syncwarp();
-
     // TODO (student): get start = d_row_ptr[row], end = d_row_ptr[row+1]
     int start = d_row_ptr[row];
     int end = d_row_ptr[row + 1];
@@ -62,7 +52,6 @@ __global__ void spmm_csr_warp_kernel(
 
             sum += v * d_B[(size_t)k * N + j];
         }
-
 
         // TODO (student): write result to d_C
         d_C[(size_t)row * N + j] = sum;
@@ -94,7 +83,6 @@ int main() {
     // CPU reference
     std::vector<float> C_ref;
     spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
-    //std::cout << "CPU Ref [0]: " << C_ref[0] << " B[0]: " << B[0] << std::endl;
 
     // Copy to device
     int *d_row_ptr, *d_col_idx;
@@ -115,7 +103,7 @@ int main() {
     int grid = (total_threads_needed + block - 1) / block;
 
     // clean up
-    cudaMemset(d_C, 0, (size_t)M * N * sizeof(float));
+    //cudaMemset(d_C, 0, (size_t)M * N * sizeof(float));
     std::cout << "Launching Kernel with Grid=" << grid << ", Block=" << block << "\n";
 
     spmm_csr_warp_kernel<<<grid, block>>>(
@@ -127,12 +115,10 @@ int main() {
         d_C
     );
 
-    // ADD THIS LINE TO SEE THE PRINTF
-    //cudaDeviceSynchronize();
-
     // Copy result back
     std::vector<float> C((size_t)M * N);
     cudaMemcpy(C.data(), d_C, (size_t)M*N*sizeof(float), cudaMemcpyDeviceToHost);
+    
     // Compare (will be wrong until students complete TODOs)
     float err = max_abs_err(C_ref, C);
     std::cout << "Max error = " << err << "\\n";
