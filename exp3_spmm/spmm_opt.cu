@@ -63,11 +63,12 @@ __global__ void spmm_csr_warp_kernel(
  MAIN DRIVER  (placeholder)
 ===========================================================
 */
-int main() {
+int main(int argc, char** argv) {
     //std::cout << "This file contains student TODOs. Compile with spmm_ref.cpp to link reference functions if needed." << std::endl;
     // After students complete the kernel, they can use the code below to test it.
     int M = 512, K = 512, N = 64;
     double density = 0.01;
+    if (argc > 1) density = std::atof(argv[1]);
     unsigned seed = 1234;
 
     std::vector<int> row_ptr, col_idx;
@@ -98,10 +99,21 @@ int main() {
     cudaMemcpy(d_vals, vals.data(), nnz*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_B, B.data(), (size_t)K*N*sizeof(float), cudaMemcpyHostToDevice);
 
+    // --- TIMING START ---
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
     int block = 256; // 每个 Block 有 256 个线程 (即 8 个 Warps)
     long long total_threads_needed = (long long)M * 32;
     int grid = (total_threads_needed + block - 1) / block;
+
+    // Warmup launch (optional but recommended for stable numbers)
+    spmm_csr_warp_kernel<<<grid, block>>>(M, N, d_row_ptr, d_col_idx, d_vals, d_B, d_C);
+    cudaDeviceSynchronize();
+
     std::cout << "Launching Kernel with Grid=" << grid << ", Block=" << block << "\n";
+    cudaEventRecord(start);
 
     spmm_csr_warp_kernel<<<grid, block>>>(
         M, N,
@@ -111,6 +123,19 @@ int main() {
         d_B,
         d_C
     );
+
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    // --- TIMING END ---
+
+    // GFLOPS calculation: (2 * nnz * N) operations
+    double seconds = milliseconds / 1000.0;
+    double gflops = (2.0 * nnz * N) / (seconds * 1e9);
+
+    std::cout << "Density: " << density << " | NNZ: " << nnz << "\\n";
+    std::cout << "Throughput: " << gflops << " GFLOPS\\n";
 
     // Copy result back
     std::vector<float> C((size_t)M * N);
