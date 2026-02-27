@@ -64,66 +64,66 @@ __global__ void spmm_csr_warp_kernel(
 ===========================================================
 */
 int main() {
-    std::cout << "This file contains student TODOs. Compile with spmm_ref.cpp to link reference functions if needed." << std::endl;
+    //std::cout << "This file contains student TODOs. Compile with spmm_ref.cpp to link reference functions if needed." << std::endl;
     // After students complete the kernel, they can use the code below to test it.
-    // int M = 512, K = 512, N = 64;
-    // double density = 0.01;
-    // unsigned seed = 1234;
+    int M = 512, K = 512, N = 64;
+    double density = 0.01;
+    unsigned seed = 1234;
 
-    // std::vector<int> row_ptr, col_idx;
-    // std::vector<float> vals;
-    // generate_random_csr(M, K, density, row_ptr, col_idx, vals, seed);
-    // int nnz = row_ptr.back();
-    // std::cout << "Optimized SpMM: M=" << M << " K=" << K << " N=" << N << " nnz=" << nnz << "\n";
+    std::vector<int> row_ptr, col_idx;
+    std::vector<float> vals;
+    generate_random_csr(M, K, density, row_ptr, col_idx, vals, seed);
+    int nnz = row_ptr.back();
+    std::cout << "Optimized SpMM: M=" << M << " K=" << K << " N=" << N << " nnz=" << nnz << "\n";
 
-    // // Create B
-    // std::vector<float> B((size_t)K * N);
-    // for (size_t i = 0; i < B.size(); i++) B[i] = float(rand()) / RAND_MAX;
+    // Create B
+    std::vector<float> B((size_t)K * N);
+    for (size_t i = 0; i < B.size(); i++) B[i] = float(rand()) / RAND_MAX;
 
-    // // CPU reference
-    // std::vector<float> C_ref;
-    // spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
+    // CPU reference
+    std::vector<float> C_ref;
+    spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
 
-    //     // Copy to device
-    // int *d_row_ptr, *d_col_idx;
-    // float *d_vals, *d_B, *d_C;
-    // cudaMalloc(&d_row_ptr, (M+1)*sizeof(int));
-    // cudaMalloc(&d_col_idx, nnz*sizeof(int));
-    // cudaMalloc(&d_vals, nnz*sizeof(float));
-    // cudaMalloc(&d_B, (size_t)K*N*sizeof(float));
-    // cudaMalloc(&d_C, (size_t)M*N*sizeof(float));
+        // Copy to device
+    int *d_row_ptr, *d_col_idx;
+    float *d_vals, *d_B, *d_C;
+    cudaMalloc(&d_row_ptr, (M+1)*sizeof(int));
+    cudaMalloc(&d_col_idx, nnz*sizeof(int));
+    cudaMalloc(&d_vals, nnz*sizeof(float));
+    cudaMalloc(&d_B, (size_t)K*N*sizeof(float));
+    cudaMalloc(&d_C, (size_t)M*N*sizeof(float));
 
-    // cudaMemcpy(d_row_ptr, row_ptr.data(), (M+1)*sizeof(int), cudaMemcpyHostToDevice);
-    // cudaMemcpy(d_col_idx, col_idx.data(), nnz*sizeof(int), cudaMemcpyHostToDevice);
-    // cudaMemcpy(d_vals, vals.data(), nnz*sizeof(float), cudaMemcpyHostToDevice);
-    // cudaMemcpy(d_B, B.data(), (size_t)K*N*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_row_ptr, row_ptr.data(), (M+1)*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_col_idx, col_idx.data(), nnz*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_vals, vals.data(), nnz*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B.data(), (size_t)K*N*sizeof(float), cudaMemcpyHostToDevice);
 
-    // int block = 256; // 每个 Block 有 256 个线程 (即 8 个 Warps)
-    // long long total_threads_needed = (long long)M * 32;
-    // int grid = (total_threads_needed + block - 1) / block;
-    // std::cout << "Launching Kernel with Grid=" << grid << ", Block=" << block << "\n";
+    int block = 256; // 每个 Block 有 256 个线程 (即 8 个 Warps)
+    long long total_threads_needed = (long long)M * 32;
+    int grid = (total_threads_needed + block - 1) / block;
+    std::cout << "Launching Kernel with Grid=" << grid << ", Block=" << block << "\n";
 
-    // spmm_csr_warp_kernel<<<grid, block>>>(
-    //     M, N,
-    //     d_row_ptr,
-    //     d_col_idx,
-    //     d_vals,
-    //     d_B,
-    //     d_C
-    // );
+    spmm_csr_warp_kernel<<<grid, block>>>(
+        M, N,
+        d_row_ptr,
+        d_col_idx,
+        d_vals,
+        d_B,
+        d_C
+    );
 
-    // // Copy result back
-    // std::vector<float> C((size_t)M * N);
-    // cudaMemcpy(C.data(), d_C, (size_t)M*N*sizeof(float), cudaMemcpyDeviceToHost);
-    // // Compare (will be wrong until students complete TODOs)
-    // float err = max_abs_err(C_ref, C);
-    // std::cout << "Max error = " << err << "\\n";
+    // Copy result back
+    std::vector<float> C((size_t)M * N);
+    cudaMemcpy(C.data(), d_C, (size_t)M*N*sizeof(float), cudaMemcpyDeviceToHost);
+    // Compare (will be wrong until students complete TODOs)
+    float err = max_abs_err(C_ref, C);
+    std::cout << "Max error = " << err << "\\n";
 
-    // cudaFree(d_row_ptr);
-    // cudaFree(d_col_idx);
-    // cudaFree(d_vals);
-    // cudaFree(d_B);
-    // cudaFree(d_C);
+    cudaFree(d_row_ptr);
+    cudaFree(d_col_idx);
+    cudaFree(d_vals);
+    cudaFree(d_B);
+    cudaFree(d_C);
      
     return 0;
 }
