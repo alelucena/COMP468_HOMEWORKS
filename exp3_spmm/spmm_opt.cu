@@ -134,8 +134,8 @@ int main(int argc, char** argv) {
     double seconds = milliseconds / 1000.0;
     double gflops = (2.0 * nnz * N) / (seconds * 1e9);
 
-    std::cout << "Density: " << density << " | NNZ: " << nnz << "\\n";
-    std::cout << "Throughput: " << gflops << " GFLOPS\\n";
+    std::cout << "Density: " << density << " | NNZ: " << nnz << endl;
+    std::cout << "Throughput: " << gflops << " GFLOPS" << endl;
 
     // Copy result back
     std::vector<float> C((size_t)M * N);
@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
 
     // Compare (will be wrong until students complete TODOs)
     float err = max_abs_err(C_ref, C);
-    std::cout << "Max error = " << err << "\\n";
+    std::cout << "Max error = " << err << endl;
 
     cudaFree(d_row_ptr);
     cudaFree(d_col_idx);
