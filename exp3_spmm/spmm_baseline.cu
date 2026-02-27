@@ -118,7 +118,13 @@ int main(int argc, char** argv) {
 
     // Create B
     std::vector<float> B((size_t)K * N);
-    for (size_t i = 0; i < B.size(); i++) B[i] = float(rand()) / RAND_MAX;
+    //Original loop
+    //for (size_t i = 0; i < B.size(); i++) B[i] = float(rand()) / RAND_MAX;
+    std::mt19937 b_gen(5678); // Use a DIFFERENT fixed seed than the CSR matrix
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    for (size_t i = 0; i < B.size(); i++) {
+        B[i] = dist(b_gen);
+    }
 
     // CPU reference
     std::vector<float> C_ref;
