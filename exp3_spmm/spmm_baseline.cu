@@ -5,21 +5,22 @@
 #include <vector>
 #include <cassert>
 #include "spmm_ref.cpp"
+#include <random> // Added for the generator in main
 
-extern void generate_random_csr(int M, int K, double density,
-                                std::vector<int>& row_ptr,
-                                std::vector<int>& col_idx,
-                                std::vector<float>& vals,
-                                unsigned seed);
+// extern void generate_random_csr(int M, int K, double density,
+//                                 std::vector<int>& row_ptr,
+//                                 std::vector<int>& col_idx,
+//                                 std::vector<float>& vals,
+//                                 unsigned seed);
 
-extern void spmm_cpu(int M, int K, int N,
-              const std::vector<int>& row_ptr,
-              const std::vector<int>& col_idx,
-              const std::vector<float>& vals,
-              const std::vector<float>& B,
-              std::vector<float>& C);
+// extern void spmm_cpu(int M, int K, int N,
+//               const std::vector<int>& row_ptr,
+//               const std::vector<int>& col_idx,
+//               const std::vector<float>& vals,
+//               const std::vector<float>& B,
+//               std::vector<float>& C);
 
-extern float max_abs_err(const std::vector<float>& A, const std::vector<float>& B);
+// extern float max_abs_err(const std::vector<float>& A, const std::vector<float>& B);
 
 using float_t = float;
 
@@ -126,8 +127,11 @@ int main(int argc, char** argv) {
         B[i] = dist(b_gen);
     }
 
-    // CPU reference
-    std::vector<float> C_ref;
+    // CPU reference: ORIGINAL
+    // std::vector<float> C_ref;
+    // spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
+
+    std::vector<float> C_ref((size_t)M * N, 0.0f); // Pre-allocate to be safe
     spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
 
     // Copy to device
