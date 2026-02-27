@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
+#include "spmm_ref.cpp"
 
 extern void generate_random_csr(int M, int K, double density,
                                 std::vector<int>& row_ptr,
