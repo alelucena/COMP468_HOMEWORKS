@@ -101,9 +101,6 @@ int main() {
     int block = 256; // 每个 Block 有 256 个线程 (即 8 个 Warps)
     long long total_threads_needed = (long long)M * 32;
     int grid = (total_threads_needed + block - 1) / block;
-
-    // clean up
-    //cudaMemset(d_C, 0, (size_t)M * N * sizeof(float));
     std::cout << "Launching Kernel with Grid=" << grid << ", Block=" << block << "\n";
 
     spmm_csr_warp_kernel<<<grid, block>>>(
@@ -118,7 +115,7 @@ int main() {
     // Copy result back
     std::vector<float> C((size_t)M * N);
     cudaMemcpy(C.data(), d_C, (size_t)M*N*sizeof(float), cudaMemcpyDeviceToHost);
-    
+
     // Compare (will be wrong until students complete TODOs)
     float err = max_abs_err(C_ref, C);
     std::cout << "Max error = " << err << "\\n";
