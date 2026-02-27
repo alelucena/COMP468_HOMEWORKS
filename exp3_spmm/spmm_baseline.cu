@@ -7,21 +7,6 @@
 #include "spmm_ref.cpp"
 #include <random> // Added for the generator in main
 
-// extern void generate_random_csr(int M, int K, double density,
-//                                 std::vector<int>& row_ptr,
-//                                 std::vector<int>& col_idx,
-//                                 std::vector<float>& vals,
-//                                 unsigned seed);
-
-// extern void spmm_cpu(int M, int K, int N,
-//               const std::vector<int>& row_ptr,
-//               const std::vector<int>& col_idx,
-//               const std::vector<float>& vals,
-//               const std::vector<float>& B,
-//               std::vector<float>& C);
-
-// extern float max_abs_err(const std::vector<float>& A, const std::vector<float>& B);
-
 using float_t = float;
 
 /*
@@ -48,7 +33,6 @@ __global__ void spmm_csr_row_kernel(
         d_C[(size_t)row * N + j] = 0.0f;
     }
 
-
     // Find nonzero range
     int start, end;
     // TODO (student): load start, end  (range logic)
@@ -73,33 +57,6 @@ __global__ void spmm_csr_row_kernel(
        
     }
 }
-// __global__ void spmm_csr_row_kernel(
-//     int M, int N,
-//     const int* __restrict__ d_row_ptr,
-//     const int* __restrict__ d_col_idx,
-//     const float_t* __restrict__ d_vals,
-//     const float_t* __restrict__ d_B,
-//     float_t* __restrict__ d_C) 
-// {
-//     int row = blockIdx.x * blockDim.x + threadIdx.x;
-//     if (row >= M) return;
-
-//     // Use a local buffer or registers if N is small, 
-//     // but for N=64, we can just process each j one by one to ensure max precision.
-//     for (int j = 0; j < N; j++) {
-//         float_t sum = 0.0f;
-//         int start = d_row_ptr[row];
-//         int end = d_row_ptr[row + 1];
-
-//         for (int i = start; i < end; i++) {
-//             int k = d_col_idx[i];
-//             float_t v = d_vals[i];
-//             sum += v * d_B[(size_t)k * N + j];
-//         }
-//         // Direct assignment is much more accurate than repeated += in global memory
-//         d_C[(size_t)row * N + j] = sum;
-//     }
-// }
 
 /*
 ===============================================================
@@ -128,11 +85,11 @@ int main(int argc, char** argv) {
     }
 
     // CPU reference: ORIGINAL
-    // std::vector<float> C_ref;
-    // spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
-
-    std::vector<float> C_ref((size_t)M * N, 0.0f); // Pre-allocate to be safe
+    std::vector<float> C_ref;
     spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
+
+    // std::vector<float> C_ref((size_t)M * N, 0.0f); // Pre-allocate to be safe
+    // spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
 
     // Copy to device
     int *d_row_ptr, *d_col_idx;
