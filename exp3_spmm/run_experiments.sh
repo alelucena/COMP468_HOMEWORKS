@@ -10,6 +10,6 @@ for d in 0.01 0.02 0.04 0.06 0.08 0.10; do
     ./spmm_opt $d | grep "Throughput" | awk '{print $6}' >> opt_data.csv
 
     echo -n "$d," >> baseline_data.csv
-    ./spmm_opt $d | grep "Throughput" | awk '{print $6}' >> baseline_data.csv
+    ./spmm_baseline $d | grep "Throughput" | awk '{print $6}' >> baseline_data.csv
 done
 
