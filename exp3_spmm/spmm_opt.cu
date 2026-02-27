@@ -32,6 +32,12 @@ __global__ void spmm_csr_warp_kernel(
     if (warp >= M) return;
     int row = warp;
 
+    // --- DEBUG LINE START ---
+    if (row == 0 && lane == 0) {
+        printf("GPU DEBUG: B[0]=%f, d_row_ptr[1]=%d, d_vals[0]=%f\n", d_B[0], d_row_ptr[1], d_vals[0]);
+    }
+    //
+
     // Initialize the output row
     // Each thread in the warp zeroes out only its assigned columns
     for (int j = lane; j < N; j += 32) {
@@ -94,6 +100,7 @@ int main() {
     // CPU reference
     std::vector<float> C_ref;
     spmm_cpu(M, K, N, row_ptr, col_idx, vals, B, C_ref);
+    std::cout << "CPU Ref [0]: " << C_ref[0] << " B[0]: " << B[0] << std::endl;
 
         // Copy to device
     int *d_row_ptr, *d_col_idx;
