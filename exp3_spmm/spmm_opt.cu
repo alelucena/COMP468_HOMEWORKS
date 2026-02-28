@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
     long long total_threads_needed = (long long)M * 32;
     int grid = (total_threads_needed + block - 1) / block;
 
-    // Warmup launch (optional but recommended for stable numbers)
+    // Warmup launch
     spmm_csr_warp_kernel<<<grid, block>>>(M, N, d_row_ptr, d_col_idx, d_vals, d_B, d_C);
     cudaDeviceSynchronize();
 
