@@ -1,7 +1,7 @@
 import random
 
 M = 2000  # Number of nodes
-Avg_Edges = 30 
+Avg_Edges = 32 
 
 with open("graph_edges.txt", "w") as f:
     for u in range(M):
