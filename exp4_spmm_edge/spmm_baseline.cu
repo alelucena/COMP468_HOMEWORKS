@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
     cudaEventCreate(&stop_spmm);
 
 
-    // === Step 1: SDDMM on GPU ===
+    // === Step 1: SDDMM on GPU ==
     {
         int block = 256;
         int grid = (nnz + block - 1) / block;
@@ -179,10 +179,11 @@ int main(int argc, char** argv) {
         sddmm_csr_baseline_kernel<<<grid, block>>>(nnz, D, d_row_indices, d_col_idx, d_E, d_vals);
         cudaEventRecord(stop_sddmm);
         cudaDeviceSynchronize();
-        float milliseconds_sddmm = 0.0f;
-        cudaEventElapsedTime(&milliseconds_sddmm, start_sddmm, stop_sddmm);
-        // -- SDDMM TIMING END
     }
+
+    float milliseconds_sddmm = 0.0f;
+    cudaEventElapsedTime(&milliseconds_sddmm, start_sddmm, stop_sddmm);
+    // -- SDDMM TIMING END
 
     // SDDMM GFLOPS calculation: (2 * nnz * N) operations
     double seconds_sddmm = milliseconds_sddmm / 1000.0;
@@ -208,10 +209,11 @@ int main(int argc, char** argv) {
         spmm_csr_row_kernel<<<grid, block>>>(M, D, d_row_ptr, d_col_idx, d_vals, d_E, d_C);
         cudaEventRecord(stop_spmm);
         cudaDeviceSynchronize();
-        float milliseconds_spmm = 0.0f;
-        cudaEventElapsedTime(&milliseconds_spmm, start_spmm, stop_spmm);
-        // -- SPMM TIMING END
     }
+
+    float milliseconds_spmm = 0.0f;
+    cudaEventElapsedTime(&milliseconds_spmm, start_spmm, stop_spmm);
+    // -- SPMM TIMING END
 
     // SPMM GFLOPS calculation: (2 * nnz * N) operations
     double seconds_spmm = milliseconds_spmm / 1000.0;
