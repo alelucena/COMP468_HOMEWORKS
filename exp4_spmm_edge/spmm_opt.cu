@@ -192,7 +192,7 @@ int main() {
 
     // SDDMM GFLOPS calculation: (2 * nnz * N) operations
     double seconds_sddmm = milliseconds_sddmm / 1000.0;
-    double gflops_sddmm = (2.0 * nnz * N) / (seconds_sddmm * 1e9);
+    double gflops_sddmm = (2.0 * nnz * D) / (seconds_sddmm * 1e9);
     std::cout << " SDDMM Throughput: " << gflops_sddmm << " GFLOPS" << "\n";
 
     // Validate SDDMM
@@ -217,7 +217,7 @@ int main() {
 
     // SPMM GFLOPS calculation: (2 * nnz * N) operations
     double seconds_spmm = milliseconds_spmm / 1000.0;
-    double gflops_spmm = (2.0 * nnz * N) / (seconds_spmm * 1e9);
+    double gflops_spmm = (2.0 * nnz * D) / (seconds_spmm * 1e9);
     std::cout << " SPMM Throughput: " << gflops_spmm << " GFLOPS" << "\n";
 
     // Validate SpMM
