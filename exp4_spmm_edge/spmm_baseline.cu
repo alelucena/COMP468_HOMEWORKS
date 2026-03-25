@@ -46,9 +46,25 @@ __global__ void sddmm_csr_baseline_kernel(
     if (p >= nnz) return;
 
     // TODO student: read source row i from d_row_indices[p]
+    int i = d_row_indices[p];
+
     // TODO student: read destination column j from d_col_idx[p]
+    int j = d_col_idx[p];
+
     // TODO student: compute dot product of E[i,:] and E[j,:] over D dimensions
+    float dot_product = 0.0f;
+
+    for (int k = 0; k < D; k++) {
+        // d_E is flatenned M * D matrix
+        // Index for E[i,k] is (i * D) + k
+        // Index for E(j,k) is (j * D) + k
+        float val_i = d_E[i * D + k];
+        float val_j = d_E[j * D + k];
+
+        dot_product += val_i * val_j;
+    }
     // TODO student: write result to d_vals[p]
+    d_vals[p] = dot_product;
 }
 
 /*
@@ -64,15 +80,39 @@ __global__ void spmm_csr_row_kernel(
     const int* __restrict__ d_col_idx,
     const float_t* __restrict__ d_vals,
     const float_t* __restrict__ d_B,
-    float_t* __restrict__ d_C)
+    float_t* __restrict__ d_C) 
 {
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     if (row >= M) return;
 
-    // TODO student: init output row
-    // TODO student: load start, end
-    // TODO student: loop over p in row nnz
-    // TODO student: accumulate into d_C[row*N + j]
+    // TODO (student): Initialize output row C[row, :]
+    for (int j = 0; j < N; j++) {
+        d_C[(size_t)row * N + j] = 0.0f;
+    }
+
+    // Find nonzero range
+    int start, end;
+    // TODO (student): load start, end  (range logic)
+    start = d_row_ptr[row];
+    end = d_row_ptr[row + 1];
+
+    // Loop over nonzeros in this row (iterates through the Value and Col arrays for the slice belonging to this thread's row)
+    for (int i = start; i < end; i++)
+    // TODO (student): 
+    {
+        // TODO (student): retrieve column index k 
+        int k = d_col_idx[i]; // which row of matrix B to multiply by.
+        // TODO (student): retrieve value v 
+        float v = d_vals[i]; // the value from matrix A.
+
+        // TODO (student): loop over all columns j of output (0..N-1)
+        //                 and accumulate:
+        for (int j = 0; j < N; j++) {
+            // For every nnz value "v" at A[row, k], multiply it by the entire k-th row of B and add it to the rowth-th row of C.
+            d_C[(size_t)row * N + j] += v * d_B[(size_t)k * N + j];
+        }
+       
+    }
 }
 
 int main(int argc, char** argv) {

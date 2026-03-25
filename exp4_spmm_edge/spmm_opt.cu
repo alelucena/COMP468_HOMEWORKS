@@ -53,10 +53,34 @@ __global__ void sddmm_csr_warp_kernel(
     int row = warp;
 
     // TODO student: fetch start and end from d_row_ptr
+    int start = d_row_ptr[row];
+    int end = d_row_ptr[row + 1];
+
     // TODO student: for each nonzero p = start + lane, start + lane + 32, ...
     //   - read column j from d_col_idx[p]
     //   - compute dot(E[row,:], E[j,:]) over D dimensions
     //   - write result to d_vals[p]
+
+    // Each thread in the warp takes an edge, then skips by 32 to find the next edge.
+    for (int p = start + lane; p < end; p += 32) {
+
+        int j = d_col_idx[p]; // The neighbor (column) index
+        float dot_product = 0.0f;
+
+        // Compute dot product of E[row,:] and E[j,:]
+        for (int k = 0; k < D; k++) {
+            // d_E is flatenned M * D matrix
+            // Index for E[row,k] is (row * D) + k
+            // Index for E(j,k) is (j * D) + k
+            float val_i = d_E[row * D + k];
+            float val_j = d_E[j * D + k];
+
+            dot_product += val_i * val_j;
+        }
+        // TODO student: write result to d_vals[p]
+        d_vals[p] = dot_product;
+            
+    }
 }
 
 /*
@@ -74,16 +98,36 @@ __global__ void spmm_csr_warp_kernel(
     float_t* __restrict__ d_C)
 {
     int global_tid = blockIdx.x * blockDim.x + threadIdx.x;
-    int warp = global_tid / 32;
-    int lane = threadIdx.x % 32;
+    int warp = global_tid / 32; // All 32 threads in the warp get the same row index.
+    int lane = threadIdx.x % 32; // Each thread's unique ID within its warp
 
     if (warp >= M) return;
     int row = warp;
 
-    // TODO student: fetch start, end
-    // TODO student: for j = lane; j < N; j += 32 ...
-    // TODO student: loop over nonzeros
-    // TODO student: accumulate
+    // TODO (student): get start = d_row_ptr[row], end = d_row_ptr[row+1]
+    int start = d_row_ptr[row];
+    int end = d_row_ptr[row + 1];
+
+    // Loop over columns j assigned to this lane 
+    // Warp handles columns 
+    for (int j = lane; j < N; j += 32) {
+
+        float_t sum = 0.0f;
+
+        // TODO (student): loop over nonzeros in this row
+        for (int i = start; i < end; i++) {
+
+             int k = d_col_idx[i]; // which row of matrix B to multiply by (column index in A).
+
+            // TODO (student): retrieve value v 
+            float_t v = d_vals[i]; // the nnz value from matrix A.
+
+            sum += v * d_B[(size_t)k * N + j];
+        }
+
+        // TODO (student): write result to d_C
+        d_C[(size_t)row * N + j] = sum;
+    }
 }
 
 int main() {
