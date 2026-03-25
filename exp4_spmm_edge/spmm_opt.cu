@@ -168,14 +168,32 @@ int main() {
     cudaMemcpy(d_col_idx, col_idx.data(), nnz * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(d_E, E.data(), (size_t)M * D * sizeof(float), cudaMemcpyHostToDevice);
 
+    // --- TIMING START ---
+    cudaEvent_t start_sddmm, stop_sddmm, start_spmm, stop_spmm;
+    cudaEventCreate(&start_sddmm);
+    cudaEventCreate(&stop_sddmm);
+    cudaEventCreate(&start_spmm);
+    cudaEventCreate(&stop_spmm);
+
     long long total_threads = (long long)M * 32;
     int block = 256;
     int grid = (total_threads + block - 1) / block;
     std::cout << "Launching warp kernels: Grid=" << grid << ", Block=" << block << "\n";
 
     // === Step 1: SDDMM on GPU ===
+    // -- SDDMM TIMING START
+    cudaEventRecord(start_sddmm);
     sddmm_csr_warp_kernel<<<grid, block>>>(M, D, d_row_ptr, d_col_idx, d_E, d_vals);
+    cudaEventRecord(stop_sddmm);
     cudaDeviceSynchronize();
+    float milliseconds_sddmm = 0.0f;
+    cudaEventElapsedTime(&milliseconds_sddmm, start_sddmm, stop_sddmm);
+    // -- SDDMM TIMING END
+
+    // SDDMM GFLOPS calculation: (2 * nnz * N) operations
+    double seconds_sddmm = milliseconds_sddmm / 1000.0;
+    double gflops_sddmm = (2.0 * nnz * N) / (seconds_sddmm * 1e9);
+    std::cout << " SDDMM Throughput: " << gflops_sddmm << " GFLOPS" << "\n";
 
     // Validate SDDMM
     std::vector<float> vals_gpu(nnz);
@@ -188,8 +206,19 @@ int main() {
         std::cout << "SDDMM FAILED\n";
 
     // === Step 2: SpMM on GPU (uses SDDMM output d_vals) ===
+    // -- SPMM TIMING START
+    cudaEventRecord(start_spmm);
     spmm_csr_warp_kernel<<<grid, block>>>(M, D, d_row_ptr, d_col_idx, d_vals, d_E, d_C);
+    cudaEventRecord(stop_spmm);
     cudaDeviceSynchronize();
+    float milliseconds_spmm = 0.0f;
+    cudaEventElapsedTime(&milliseconds_spmm, start_spmm, stop_spmm);
+    // -- SPMM TIMING END
+
+    // SPMM GFLOPS calculation: (2 * nnz * N) operations
+    double seconds_spmm = milliseconds_spmm / 1000.0;
+    double gflops_spmm = (2.0 * nnz * N) / (seconds_spmm * 1e9);
+    std::cout << " SPMM Throughput: " << gflops_spmm << " GFLOPS" << "\n";
 
     // Validate SpMM
     std::vector<float> C_gpu((size_t)M * D);
