@@ -219,6 +219,7 @@ int main(int argc, char** argv) {
     double seconds_spmm = milliseconds_spmm / 1000.0;
     double gflops_spmm = (2.0 * nnz * D) / (seconds_spmm * 1e9);
     std::cout << " SPMM Throughput: " << gflops_spmm << " GFLOPS" << "\n";
+    std::cout << "COMBINED THROUGHPUT: " << gflops_sddmm + gflops_spmm << " GFLOPS" << "\n";
 
     // Validate SpMM
     std::vector<float> C_gpu((size_t)M * D);
