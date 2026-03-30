@@ -74,9 +74,43 @@ void conv2d_cpu_reference(const Conv2dShape& shape,
     std::fill(output.begin(), output.end(), 0.0f);
     /* TODO(student): implement the nested loops over Cout, Hout, Wout, Cin, and KxK.
        Use shape helpers (see conv_kernel.cuh) to translate indices and honor padding. */
-    (void)shape;
-    (void)input;
-    (void)weight;
+
+    // 1. Loop over every output channel (filter)
+    for (int oc = 0; oc < shape.filters; oc++) {
+         
+        // 2. Loop over every row of the output image
+         for (int oh = 0; oh < shape.out_height; oh++) {
+
+            // 3. Loop over every column of the output image
+            for (int ow = 0; ow < shape.out_width; ow++) {
+
+                // Accumulator
+                float acc = 0.0f;
+
+                // 4. Loop over every input channel
+                for (int ic = 0; ic < shape.channels; ic++) {
+                    
+                    // 5 AND 6. Loop over the math kernl; (Filter Width/Height). Calculate  corresponding input coordinates (ih, iw) and boundary check for padding
+                    for (int kh = 0; kh < shape.kernel; kh++) {
+                        for (int kw = 0; kw < shape.kernel; kw++) {
+                            // Calculate the corresponding coordinate in the INPUT image
+                            int ih = oh * shape.stride - shape.padding + kh;
+                            int iw = ow * shape.stride - shape.padding + kw;
+                            
+                            // Skip taps that fall outside the padded image.
+                            if (iw >= 0 && iw < shape.width && ih >= 0 && ih < shape.height) {
+                                int in_idx = input_index(shape, ic, ih, iw);
+                                int w_idx = weight_index(shape, oc, ic, kh, kw);
+                                acc += input[in_idx] * weight[w_idx];
+                            }
+                        }
+                    }
+                }
+                // 7. Write the final sum to the output tensor
+                output[output_index(shape, oc, oh, ow)] = acc;
+            }
+        }
+    }
 }
 
 int main(int argc, char** argv) {

@@ -61,7 +61,7 @@ __global__ void conv2d_naive_kernel(const float* __restrict__ input,
                                     Conv2dShape shape) {
     const int ow = blockIdx.x * blockDim.x + threadIdx.x;
     const int oh = blockIdx.y * blockDim.y + threadIdx.y;
-    const int oc = blockIdx.z;
+    const int oc = blockIdx.z; // output channel
     if (ow >= shape.out_width || oh >= shape.out_height || oc >= shape.filters) {
         return;
     }
@@ -71,9 +71,24 @@ __global__ void conv2d_naive_kernel(const float* __restrict__ input,
        ih = oh * stride - padding + kh;
        iw = ow * stride - padding + kw;
        Skip taps that fall outside the padded image. */
+
+    for (int ic = 0; ic < shape.channels; ic++) {
+        for (int kh = 0; kh < shape.kernel; kh++) {
+            for (int kw = 0; kw < shape.kernel; kw++) {
+                // Calculate the corresponding coordinate in the INPUT image
+                int ih = oh * shape.stride - shape.padding + kh;
+                int iw = ow * shape.stride - shape.padding + kw;
+                
+                // Skip taps that fall outside the padded image.
+                if (iw >= 0 && iw < shape.width && ih >= 0 && ih < shape.height) {
+                    int in_idx = input_index(shape, ic, ih, iw);
+                    int w_idx = weight_index(shape, oc, ic, kh, kw);
+                    acc += input[in_idx] * weight[w_idx];
+                }
+            }
+        }
+    }
     output[output_index(shape, oc, oh, ow)] = acc;
-    (void)input;
-    (void)weight;
 }
 
 __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
@@ -81,16 +96,70 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
                                     float* __restrict__ output,
                                     Conv2dShape shape) {
     extern __shared__ float tile[];
-    float* tile_input = tile;                              // BLOCK_SIZE^2 * Cin chunk (student-defined)
-    float* tile_weight = tile + BLOCK_SIZE * BLOCK_SIZE;   // placeholder layout suggestion
-    /* TODO(student): stage input patches / filter tiles into shared memory and reuse them
-       across threads within the block. Carefully handle halos caused by padding. */
-    (void)tile_input;
-    (void)tile_weight;
-    (void)output;
-    (void)shape;
-    (void)input;
-    (void)weight;
+    const int K = shape.kernel;
+    const int SHARED_DIM = BLOCK_SIZE + K - 1; 
+    
+    float* tile_input = tile;                              
+    float* tile_weight = tile + (SHARED_DIM * SHARED_DIM);   
+
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    const int oc = blockIdx.z; 
+
+    // Define output coordinates once
+    const int oh = blockIdx.y * BLOCK_SIZE + ty;
+    const int ow = blockIdx.x * BLOCK_SIZE + tx;
+
+    // The top-left corner of the INPUT area this block needs (including padding offset)
+    const int row_start = blockIdx.y * BLOCK_SIZE * shape.stride - shape.padding;
+    const int col_start = blockIdx.x * BLOCK_SIZE * shape.stride - shape.padding;
+
+    float acc = 0.0f; 
+    
+    // Loop over each channel
+    for (int ic = 0; ic < shape.channels; ic++) {
+
+        // 1. Fill the tile_input (Collaborative Load)
+        for (int i = ty; i < SHARED_DIM; i += BLOCK_SIZE) {
+            for (int j = tx; j < SHARED_DIM; j += BLOCK_SIZE) {
+                int curr_row = row_start + i;
+                int curr_col = col_start + j;
+
+                if (curr_row >= 0 && curr_row < shape.height && curr_col >= 0 && curr_col < shape.width) {
+                    tile_input[i * SHARED_DIM + j] = input[input_index(shape, ic, curr_row, curr_col)];
+                } else {
+                    // Padding if out-of-bounds
+                    tile_input[i * SHARED_DIM + j] = 0.0f; 
+                }
+            }
+        }
+
+        // 2. Load weights for this specific (output_channel, input_channel)
+        if (ty < K && tx < K) {
+            tile_weight[ty * K + tx] = weight[weight_index(shape, oc, ic, ty, tx)];
+        }
+
+        // SYNC: Ensure everyone has finished loading before starting math
+        __syncthreads();
+
+        // 3. Compute
+        if (oh < shape.out_height && ow < shape.out_width) {
+            for (int kh = 0; kh < K; kh++) {
+                for (int kw = 0; kw < K; kw++) {
+                    // Anchor at (ty*S, tx*S) and offset by kernel index (kh, kw)
+                    acc += tile_input[(ty * shape.stride + kh) * SHARED_DIM + (tx * shape.stride + kw)] * tile_weight[kh * K + kw];
+                }
+            }
+        }
+
+        // SYNC: Ensure everyone is done reading before the next channel overwrites shared memory
+        __syncthreads();
+    }
+    
+    // 4. Write back
+    if (oh < shape.out_height && ow < shape.out_width && oc < shape.filters) {
+        output[output_index(shape, oc, oh, ow)] = acc;
+    }
 }
 
 inline void launch_naive_conv2d(const float* d_input,
