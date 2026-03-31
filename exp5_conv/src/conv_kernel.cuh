@@ -171,7 +171,10 @@ inline void launch_naive_conv2d(const float* d_input,
     dim3 grid = make_conv_grid(shape);
     conv2d_naive_kernel<<<grid, block, 0, stream>>>(d_input, d_weight, d_output, shape);
     /* TODO(student): check cudaGetLastError() and optionally cudaDeviceSynchronize() when debugging. */
-    cudaGetLastError();
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("CUDA Error: %s\n", cudaGetErrorString(err));
+    }
 }
 
 inline void launch_tiled_conv2d(const float* d_input,
