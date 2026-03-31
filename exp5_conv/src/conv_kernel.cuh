@@ -120,17 +120,21 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
     for (int ic = 0; ic < shape.channels; ic++) {
 
         // 1. Fill the tile_input (Collaborative Load)
-        for (int i = ty; i < SHARED_DIM; i += BLOCK_SIZE) {
-            for (int j = tx; j < SHARED_DIM; j += BLOCK_SIZE) {
-                int curr_row = row_start + i;
-                int curr_col = col_start + j;
+        int total_tile_elements = SHARED_DIM * SHARED_DIM;
+        int block_threads = BLOCK_SIZE * BLOCK_SIZE;
+        int thread_id = ty * BLOCK_SIZE + tx;
 
-                if (curr_row >= 0 && curr_row < shape.height && curr_col >= 0 && curr_col < shape.width) {
-                    tile_input[i * SHARED_DIM + j] = input[input_index(shape, ic, curr_row, curr_col)];
-                } else {
-                    // Padding if out-of-bounds
-                    tile_input[i * SHARED_DIM + j] = 0.0f; 
-                }
+        for (int tid = thread_id; tid < total_tile_elements; tid += block_threads) {
+            int i = tid / SHARED_DIM;
+            int j = tid % SHARED_DIM;
+            int curr_row = row_start + i;
+            int curr_col = col_start + j;
+
+            if (curr_row >= 0 && curr_row < shape.height && curr_col >= 0 && curr_col < shape.width) {
+                tile_input[i * SHARED_DIM + j] = input[input_index(shape, ic, curr_row, curr_col)];
+            } else {
+                // Padding if out-of-bounds
+                tile_input[i * SHARED_DIM + j] = 0.0f; 
             }
         }
 
@@ -144,7 +148,9 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
 
         // 3. Compute
         if (oh < shape.out_height && ow < shape.out_width) {
+            #pragma unroll // optimize the inner loops into line code,
             for (int kh = 0; kh < K; kh++) {
+                #pragma unroll
                 for (int kw = 0; kw < K; kw++) {
                     // Anchor at (ty*S, tx*S) and offset by kernel index (kh, kw)
                     acc += tile_input[(ty * shape.stride + kh) * SHARED_DIM + (tx * shape.stride + kw)] * tile_weight[kh * K + kw];
