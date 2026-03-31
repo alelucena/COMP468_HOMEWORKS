@@ -133,9 +133,13 @@ int main(int argc, char** argv) {
     float* d_weight = nullptr;
     float* d_output = nullptr;
     /* TODO(student): cudaMalloc device buffers and copy host data (cudaMemcpy H2D). */
-    (void)d_input;
-    (void)d_weight;
-    (void)d_output;
+    // (void)d_input;
+    // (void)d_weight;
+    // (void)d_output;
+
+    check_cuda(cudaMalloc(&d_input, input_elems * sizeof(float)), "allocate d_input");
+    check_cuda(cudaMalloc(&d_weight, weight_elems * sizeof(float)), "allocate d_weight");
+    check_cuda(cudaMalloc(&d_output, output_elems * sizeof(float)), "allocate d_output");
 
     cudaEvent_t start, stop;
     check_cuda(cudaEventCreate(&start), "create start event");
@@ -144,6 +148,8 @@ int main(int argc, char** argv) {
     check_cuda(cudaStreamCreate(&stream), "create stream");
 
     float elapsed_ms = 0.0f;
+    check_cuda(cudaEventRecord(start, stream), "record start");
+
     if (opt.impl == "baseline" || opt.impl == "naive") {
         /* TODO(student): record events around launch_naive_conv2d and compute elapsed_ms. */
         launch_naive_conv2d(d_input, d_weight, d_output, shape, stream);
@@ -154,11 +160,22 @@ int main(int argc, char** argv) {
         throw std::invalid_argument("Unknown implementation: " + opt.impl);
     }
 
-    /* TODO(student): copy device output back to h_output (cudaMemcpy D2H). */
+    check_cuda(cudaEventRecord(stop, stream), "record stop");
+    check_cuda(cudaEventSynchronize(stop), "sync stop");
+    check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed total");
 
+    /* TODO(student): copy device output back to h_output (cudaMemcpy D2H). */
+    cudaMemcpyAsync(h_output.data(), d_output, output_elems * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+
+    float max_diff = 0.0f;
     if (opt.verify) {
         conv2d_cpu_reference(shape, h_input, h_weight, h_ref);
         /* TODO(student): compute max absolute error between h_output and h_ref. */
+        for (size_t i = 0; i < h_ref.size(); ++i) {
+            max_diff = std::max(max_diff, std::abs(h_output[i] - h_ref[i]));
+        }
+        std::cout << "Max absolute difference: " << max_diff << std::endl;
     }
 
     if (elapsed_ms > 0.0f) {
@@ -172,5 +189,9 @@ int main(int argc, char** argv) {
     }
 
     /* TODO(student): free device memory and destroy CUDA events/streams. */
+    cudaFree(d_input); cudaFree(d_weight); cudaFree(d_output);
+    cublasDestroy(handle);
+    cudaEventDestroy(start); cudaEventDestroy(stop);
+    cudaStreamDestroy(stream);
     return 0;
 }
