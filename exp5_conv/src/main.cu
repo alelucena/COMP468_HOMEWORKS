@@ -137,9 +137,14 @@ int main(int argc, char** argv) {
     // (void)d_weight;
     // (void)d_output;
 
+    // Allocate device buffers
     check_cuda(cudaMalloc(&d_input, input_elems * sizeof(float)), "allocate d_input");
     check_cuda(cudaMalloc(&d_weight, weight_elems * sizeof(float)), "allocate d_weight");
     check_cuda(cudaMalloc(&d_output, output_elems * sizeof(float)), "allocate d_output");
+
+    // Copy host data
+    check_cuda(cudaMemcpy(d_input, h_input.data(), input_elems * sizeof(float),cudaMemcpyHostToDevice), "H2D input");
+    checK_cuda(cudaMemcpy(d_weight, h_weight.data(), weight_elems * sizeof(float), cudaMemcpyHostToDevice), "H2D weight");
 
     cudaEvent_t start, stop;
     check_cuda(cudaEventCreate(&start), "create start event");
