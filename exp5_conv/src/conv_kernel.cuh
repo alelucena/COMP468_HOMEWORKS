@@ -171,6 +171,7 @@ inline void launch_naive_conv2d(const float* d_input,
     dim3 grid = make_conv_grid(shape);
     conv2d_naive_kernel<<<grid, block, 0, stream>>>(d_input, d_weight, d_output, shape);
     /* TODO(student): check cudaGetLastError() and optionally cudaDeviceSynchronize() when debugging. */
+    check_cuda(cudaGetLastError(), "Kernel Launch Failure");
 }
 
 inline void launch_tiled_conv2d(const float* d_input,
@@ -180,7 +181,9 @@ inline void launch_tiled_conv2d(const float* d_input,
                                 cudaStream_t stream) {
     dim3 block(BLOCK_SIZE, BLOCK_SIZE, 1);
     dim3 grid = make_conv_grid(shape);
-    size_t shared_bytes = 2 * BLOCK_SIZE * BLOCK_SIZE * sizeof(float);
+    const int SHARED_DIM = BLOCK_SIZE + shape.kernel - 1;
+    //size_t shared_bytes = 2 * BLOCK_SIZE * BLOCK_SIZE * sizeof(float);
+    size_t shared_bytes = (SHARED_DIM * SHARED_DIM + shape.kernel * shape.kernel) * sizeof(float);
     conv2d_tiled_kernel<<<grid, block, shared_bytes, stream>>>(d_input, d_weight, d_output, shape);
     /* TODO(student): choose a better shared-memory layout/size expression once kernels are implemented. */
     (void)d_input;
