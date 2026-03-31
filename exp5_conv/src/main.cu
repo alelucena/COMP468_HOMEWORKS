@@ -190,7 +190,6 @@ int main(int argc, char** argv) {
 
     /* TODO(student): free device memory and destroy CUDA events/streams. */
     cudaFree(d_input); cudaFree(d_weight); cudaFree(d_output);
-    cublasDestroy(handle);
     cudaEventDestroy(start); cudaEventDestroy(stop);
     cudaStreamDestroy(stream);
     return 0;
