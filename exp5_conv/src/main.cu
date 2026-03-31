@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
 
     // Copy host data
     check_cuda(cudaMemcpy(d_input, h_input.data(), input_elems * sizeof(float),cudaMemcpyHostToDevice), "H2D input");
-    checK_cuda(cudaMemcpy(d_weight, h_weight.data(), weight_elems * sizeof(float), cudaMemcpyHostToDevice), "H2D weight");
+    check_cuda(cudaMemcpy(d_weight, h_weight.data(), weight_elems * sizeof(float), cudaMemcpyHostToDevice), "H2D weight");
 
     cudaEvent_t start, stop;
     check_cuda(cudaEventCreate(&start), "create start event");
