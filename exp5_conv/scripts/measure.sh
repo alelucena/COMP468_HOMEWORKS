@@ -21,7 +21,7 @@ for h in "${SPATIAL[@]}"; do
       # TODO(student): parse stdout from the binary and append to the CSV.
       "$BIN" --height "$h" --width "$h" --channels "$CIN" --filters "$cout" \
       --ksize "$K" --stride "$STRIDE" --padding "$PADDING" --impl "$impl" --no-verify 2>&1 | 
-      grep "Impl=" | awk -F'[= ]' -v Cin="$CIN" -v stride="$STRIDE" '{print $2", "$4", "$4", "Cin","$12", "stride", "$16","$18}' >> "$LOG"
+      grep "Impl=" | awk -F'[= ]' -v Cin="$CIN" -v stride="$STRIDE" '{print $2", "$4", "$4", "Cin",  "$11", "$12", "stride", "$16","$18}' >> "$LOG"
     done
   done
 done
