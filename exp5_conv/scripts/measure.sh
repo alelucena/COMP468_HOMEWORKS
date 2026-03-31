@@ -20,7 +20,7 @@ for h in "${SPATIAL[@]}"; do
       echo "Running $impl H=$h Cout=$cout"
       # TODO(student): parse stdout from the binary and append to the CSV.
       "$BIN" --height "$h" --width "$h" --channels "$CIN" --filters "$cout" \
-      --ksize "$K" --stride "$STRIDE" --padding "$PADDING" --impl "$impl" --no-verify 2>&1 | \ 
+      --ksize "$K" --stride "$STRIDE" --padding "$PADDING" --impl "$impl" --no-verify 2>&1 | 
       grep "Impl=" | awk -F'[= ]' '{print $2","$6","$4","$8","$10}' >> "$LOG"
     done
   done
