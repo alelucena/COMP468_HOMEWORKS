@@ -106,11 +106,10 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
     const int ty = threadIdx.y;
     const int oc = blockIdx.z; 
 
-    // Define output coordinates once
+    // Define output coordinates 
     const int oh = blockIdx.y * BLOCK_SIZE + ty;
     const int ow = blockIdx.x * BLOCK_SIZE + tx;
 
-    // The top-left corner of the INPUT area this block needs (including padding offset)
     const int row_start = blockIdx.y * BLOCK_SIZE * shape.stride - shape.padding;
     const int col_start = blockIdx.x * BLOCK_SIZE * shape.stride - shape.padding;
 
@@ -119,7 +118,7 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
     // Loop over each channel
     for (int ic = 0; ic < shape.channels; ic++) {
 
-        // 1. Fill the tile_input (Collaborative Load)
+        // 1. Fill the tile_input 
         int total_tile_elements = SHARED_DIM * SHARED_DIM;
         int block_threads = BLOCK_SIZE * BLOCK_SIZE;
         int thread_id = ty * BLOCK_SIZE + tx;
@@ -133,7 +132,7 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
             if (curr_row >= 0 && curr_row < shape.height && curr_col >= 0 && curr_col < shape.width) {
                 tile_input[i * SHARED_DIM + j] = input[input_index(shape, ic, curr_row, curr_col)];
             } else {
-                // Padding if out-of-bounds
+                // Padding 
                 tile_input[i * SHARED_DIM + j] = 0.0f; 
             }
         }
@@ -143,7 +142,7 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
             tile_weight[ty * K + tx] = weight[weight_index(shape, oc, ic, ty, tx)];
         }
 
-        // SYNC: Ensure everyone has finished loading before starting math
+        // SYNC: Wait for all threads to be finished loading before starting computation
         __syncthreads();
 
         // 3. Compute
@@ -158,7 +157,7 @@ __global__ void conv2d_tiled_kernel(const float* __restrict__ input,
             }
         }
 
-        // SYNC: Ensure everyone is done reading before the next channel overwrites shared memory
+        // SYNC: Wait for all threads to be done eading before the next channel overwrites shared memory
         __syncthreads();
     }
     
@@ -191,13 +190,10 @@ inline void launch_tiled_conv2d(const float* d_input,
     dim3 block(BLOCK_SIZE, BLOCK_SIZE, 1);
     dim3 grid = make_conv_grid(shape);
     const int SHARED_DIM = BLOCK_SIZE + shape.kernel - 1;
-    //size_t shared_bytes = 2 * BLOCK_SIZE * BLOCK_SIZE * sizeof(float);
+
     size_t shared_bytes = (SHARED_DIM * SHARED_DIM + shape.kernel * shape.kernel) * sizeof(float);
     conv2d_tiled_kernel<<<grid, block, shared_bytes, stream>>>(d_input, d_weight, d_output, shape);
     /* TODO(student): choose a better shared-memory layout/size expression once kernels are implemented. */
-    (void)d_input;
-    (void)d_weight;
-    (void)d_output;
 }
 
 inline double conv_gflops(const Conv2dShape& shape, double millis) {

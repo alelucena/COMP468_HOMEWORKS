@@ -90,14 +90,14 @@ void conv2d_cpu_reference(const Conv2dShape& shape,
                 // 4. Loop over every input channel
                 for (int ic = 0; ic < shape.channels; ic++) {
                     
-                    // 5 AND 6. Loop over the math kernl; (Filter Width/Height). Calculate  corresponding input coordinates (ih, iw) and boundary check for padding
+                    // 5 AND 6. Loop over the math kernl; (Filter Width/Height). 
                     for (int kh = 0; kh < shape.kernel; kh++) {
                         for (int kw = 0; kw < shape.kernel; kw++) {
                             // Calculate the corresponding coordinate in the INPUT image
                             int ih = oh * shape.stride - shape.padding + kh;
                             int iw = ow * shape.stride - shape.padding + kw;
                             
-                            // Skip taps that fall outside the padded image.
+                            // Skip taps that fall outside the padded image
                             if (iw >= 0 && iw < shape.width && ih >= 0 && ih < shape.height) {
                                 int in_idx = input_index(shape, ic, ih, iw);
                                 int w_idx = weight_index(shape, oc, ic, kh, kw);
@@ -106,7 +106,7 @@ void conv2d_cpu_reference(const Conv2dShape& shape,
                         }
                     }
                 }
-                // 7. Write the final sum to the output tensor
+                // 7. Write the final sum to the output CUDA core
                 output[output_index(shape, oc, oh, ow)] = acc;
             }
         }
@@ -132,10 +132,8 @@ int main(int argc, char** argv) {
     float* d_input = nullptr;
     float* d_weight = nullptr;
     float* d_output = nullptr;
+
     /* TODO(student): cudaMalloc device buffers and copy host data (cudaMemcpy H2D). */
-    // (void)d_input;
-    // (void)d_weight;
-    // (void)d_output;
 
     // Allocate device buffers
     check_cuda(cudaMalloc(&d_input, input_elems * sizeof(float)), "allocate d_input");
