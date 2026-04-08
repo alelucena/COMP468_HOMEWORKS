@@ -400,20 +400,14 @@ inline void run_lenet_pool(cudnnHandle_t handle,
     ), "Pooling");
 }
 
-__global__ void fc_bias_activation_kernel(float* data, const float* bias, int size, int batch_Size, bool apply_tanh) {
+__global__ void fc_bias_activation_kernel(float* data, const float* bias, int size, int out_features, bool apply_tanh) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
-        // Bias is per-output-feature; use modulo for batch broadcasting
-        int bias_idx = idx / batch_Size;
-        float val = data[idx] + bias[bias_idx];
+        // Now that it's standard Row-Major, the feature index is:
+        int feature_idx = idx % out_features; 
+        float val = data[idx] + bias[feature_idx];
         
-        if (apply_tanh) {
-            // Tanh activation 
-            data[idx] = tanhf(val); 
-        } else {
-            data[idx] = val;
-        }
-       
+        data[idx] = apply_tanh ? tanhf(val) : val;
     }
 }
 
@@ -444,22 +438,20 @@ inline void run_fc_layer(cublasHandle_t handle,
 
     float alpha = 1.0f;
     float beta = 0.0f;
-    // 1. GEMM call
-    // Want: Output[M, N] = Weight[M, K] * Input[K, N]
-    // In cuBLAS (Column-Major), this is equivalent to:
-    // RowMajor_Matrix_Mult(A, B) == ColumnMajor_Matrix_Mult(B, A)
+    // 1. GEMM call (Row-Major Output)
+    // M = out_features, N = batch, K = in_features
     check_cublas(cublasSgemm(handle, 
-                            CUBLAS_OP_N,   // Don't transpose B (Batch is columns)
-                            CUBLAS_OP_N,   // Don't transpose A (Weights are rows)
-                            batch,         // New 'm'
-                            out_features,  // New 'n'
-                            in_features,   // New 'k'
+                            CUBLAS_OP_T,   // Transpose Weights (now Weight is [in_features, out_features])
+                            CUBLAS_OP_N,   // Input is [batch, in_features]
+                            out_features,  // m
+                            batch,         // n
+                            in_features,   // k
                             &alpha,
-                            d_input, batch,         // lda = batch
-                            d_weight, in_features,  // ldb = in_features
+                            d_weight, in_features, // lda
+                            d_input, in_features,  // ldb
                             &beta,
-                            d_output, batch), "GEMM");      // ldc = batch
-    
+                            d_output, out_features), "GEMM"); // ldc
+
     // 2. Launch Bias + Activation Kernel
     // Add a boolean flag to the kernel to decide whether to Tanh or not
     bool apply_tanh = (layer_idx < 2); // true for FC1 (0) and FC2 (1), false for FC3 (2)
@@ -469,7 +461,7 @@ inline void run_fc_layer(cublasHandle_t handle,
     int blocksPerGrid = (total_elements + threadsPerBlock - 1) / threadsPerBlock;
     
     fc_bias_activation_kernel<<<blocksPerGrid, threadsPerBlock, 0, stream>>>(
-        d_output, d_bias, total_elements, shape.batch, apply_tanh
+        d_output, d_bias, total_elements, out_features, apply_tanh
     );
 }
 
