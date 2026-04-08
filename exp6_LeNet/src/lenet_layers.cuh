@@ -134,6 +134,8 @@ struct LenetDescriptors {
 
     cudnnActivationDescriptor_t activation = nullptr;
     cudnnPoolingDescriptor_t pool = nullptr;
+
+    cudnnTensorDescriptor_t bias_desc = nullptr;
 };
 
 void check_cublas(cublasStatus_t status, const char* msg) {
@@ -225,6 +227,13 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
     // --- 7. Configure Activation ---
     check_cudnn(cudnnSetActivationDescriptor(d.activation, CUDNN_ACTIVATION_TANH, 
                                              CUDNN_NOT_PROPAGATE_NAN, 0.0), "set activation");
+
+    // -- 8 - BIAS
+    int channels = second_conv ? shape.conv2_out_channels : shape.conv1_out_channels;
+
+    // Bias is always 1 x Channels x 1 x 1 for NCHW broadcasting
+    check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
+                                           1, channels, 1, 1), "set bias desc");
 }
 
 inline void destroy_lenet_descriptors(LenetDescriptors& d) {
@@ -248,9 +257,11 @@ inline void destroy_lenet_descriptors(LenetDescriptors& d) {
     if (d.conv1_desc)     check_cudnn(cudnnDestroyConvolutionDescriptor(d.conv1_desc), "destroy conv1_desc");
     if (d.conv2_desc)     check_cudnn(cudnnDestroyConvolutionDescriptor(d.conv2_desc), "destroy conv2_desc");
 
-    // Destroy Activation and Pooling Descriptors
+    // Destroy Activation/Bias/Pooling Descriptors
     if (d.activation)     check_cudnn(cudnnDestroyActivationDescriptor(d.activation), "destroy activation");
     if (d.pool)           check_cudnn(cudnnDestroyPoolingDescriptor(d.pool), "destroy pool");
+
+    if (d.bias_desc)      check_cudnn(cudnnDestroyTensorDescriptor(d.bias_desc), "destroy bias desc");
 
     // Set all to nullptr for safety
     d.input_desc = nullptr;
@@ -267,6 +278,7 @@ inline void destroy_lenet_descriptors(LenetDescriptors& d) {
     d.conv2_desc = nullptr;
     d.activation = nullptr;
     d.pool = nullptr;
+    d.bias_desc = nullptr;
 }
 
 inline cudnnConvolutionFwdAlgo_t parse_algo(const std::string& name) {
@@ -355,12 +367,10 @@ inline void run_lenet_conv(cudnnHandle_t handle,
 
     check_cudnn(cudnnAddTensor(
         handle, &alpha,
-        bias_desc, d_bias + bias_offset, // Source: The bias values
+        descs.bias_desc, d_bias + bias_offset, // Source: The bias values
         &beta_one,
         second_conv ? descs.conv2_out_desc : descs.conv1_out_desc, d_output // Dest: Add to conv output
     ), "Add bias");
-
-    check_cudnn(cudnnDestroyTensorDescriptor(bias_desc), "destroy bias desc");
 
     // 3. ACTIVATION
     check_cudnn(cudnnActivationForward(
