@@ -135,7 +135,9 @@ struct LenetDescriptors {
     cudnnActivationDescriptor_t activation = nullptr;
     cudnnPoolingDescriptor_t pool = nullptr;
 
-    cudnnTensorDescriptor_t bias_desc = nullptr;
+    cudnnTensorDescriptor_t bias_desc_conv1 = nullptr;
+    cudnnTensorDescriptor_t bias_desc_conv2 = nullptr;
+
 };
 
 void check_cublas(cublasStatus_t status, const char* msg) {
@@ -164,6 +166,10 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
     check_cudnn(cudnnCreateTensorDescriptor(&d.fc1_desc), "create fc1_desc");
     check_cudnn(cudnnCreateTensorDescriptor(&d.fc2_desc), "create fc2_desc");
     check_cudnn(cudnnCreateTensorDescriptor(&d.fc3_desc), "create fc3_desc");
+
+    // Bias
+    check_cudnn(cudnnCreateTensorDescriptor(&d.bias_desc_conv1), "create bias desc conv1");
+    check_cudnn(cudnnCreateTensorDescriptor(&d.bias_desc_conv2), "create bias desc conv2");
 
     check_cudnn(cudnnCreateFilterDescriptor(&d.conv1_filter), "create conv1_filter");
     check_cudnn(cudnnCreateFilterDescriptor(&d.conv2_filter), "create conv2_filter");
@@ -229,11 +235,11 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
                                              CUDNN_NOT_PROPAGATE_NAN, 0.0), "set activation");
 
     // -- 8 - BIAS
-    int channels = second_conv ? shape.conv2_out_channels : shape.conv1_out_channels;
-
     // Bias is always 1 x Channels x 1 x 1 for NCHW broadcasting
-    check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
-                                           1, channels, 1, 1), "set bias desc");
+    check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc_conv1, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
+                                           1, shape.conv1_out_channels, 1, 1), "set bias desc conv1");
+    check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc_conv2, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
+                                           1, shape.conv2_out_channels, 1, 1), "set bias desc conv2");                                        
 }
 
 inline void destroy_lenet_descriptors(LenetDescriptors& d) {
@@ -261,7 +267,8 @@ inline void destroy_lenet_descriptors(LenetDescriptors& d) {
     if (d.activation)     check_cudnn(cudnnDestroyActivationDescriptor(d.activation), "destroy activation");
     if (d.pool)           check_cudnn(cudnnDestroyPoolingDescriptor(d.pool), "destroy pool");
 
-    if (d.bias_desc)      check_cudnn(cudnnDestroyTensorDescriptor(d.bias_desc), "destroy bias desc");
+    if (d.bias_desc_conv1)      check_cudnn(cudnnDestroyTensorDescriptor(d.bias_desc_conv1), "destroy bias desc conv1");
+    if (d.bias_desc_conv2)      check_cudnn(cudnnDestroyTensorDescriptor(d.bias_desc_conv2), "destroy bias desc conv1");
 
     // Set all to nullptr for safety
     d.input_desc = nullptr;
@@ -278,7 +285,8 @@ inline void destroy_lenet_descriptors(LenetDescriptors& d) {
     d.conv2_desc = nullptr;
     d.activation = nullptr;
     d.pool = nullptr;
-    d.bias_desc = nullptr;
+    d.bias_desc_conv1 = nullptr;
+    d.bias_desc_conv2 = nullptr;
 }
 
 inline cudnnConvolutionFwdAlgo_t parse_algo(const std::string& name) {
@@ -356,18 +364,10 @@ inline void run_lenet_conv(cudnnHandle_t handle,
     ), "Convolution");
 
     // 2. BIAS ADDITION
-    // Need a temporary descriptor for the bias tensor (1 x C x 1 x 1)
-    cudnnTensorDescriptor_t bias_desc;
-    check_cudnn(cudnnCreateTensorDescriptor(&bias_desc), "create bias desc");
-    
-    int channels = second_conv ? shape.conv2_out_channels : shape.conv1_out_channels;
-    // Bias is always 1 x Channels x 1 x 1 for NCHW broadcasting
-    check_cudnn(cudnnSetTensor4dDescriptor(bias_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
-                                           1, channels, 1, 1), "set bias desc");
-
     check_cudnn(cudnnAddTensor(
         handle, &alpha,
-        descs.bias_desc, d_bias + bias_offset, // Source: The bias values
+        second_conv ? descs.bias_desc_conv2 : descs.bias_desc_conv1,
+        d_bias + bias_offset, // Source: The bias values
         &beta_one,
         second_conv ? descs.conv2_out_desc : descs.conv1_out_desc, d_output // Dest: Add to conv output
     ), "Add bias");
