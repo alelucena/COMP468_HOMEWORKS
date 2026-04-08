@@ -54,18 +54,6 @@ void check_cuda(cudaError_t err, const char* msg) {
     }
 }
 
-void check_cudnn(cudnnStatus_t status, const char* msg) {
-    if (status != CUDNN_STATUS_SUCCESS) {
-        throw std::runtime_error(std::string(msg) + " : " + cudnnGetErrorString(status));
-    }
-}
-
-void check_cublas(cublasStatus_t status, const char* msg) {
-    if (status != CUBLAS_STATUS_SUCCESS) {
-        throw std::runtime_error(std::string(msg) + " : cuBLAS error");
-    }
-}
-
 void seed_tensor(std::vector<float>& vec, float scale) {
     for (size_t i = 0; i < vec.size(); ++i) {
         vec[i] = scale * std::sin(0.017f * static_cast<float>(i));

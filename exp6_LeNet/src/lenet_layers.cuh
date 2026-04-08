@@ -136,6 +136,12 @@ struct LenetDescriptors {
     cudnnPoolingDescriptor_t pool = nullptr;
 };
 
+void check_cublas(cublasStatus_t status, const char* msg) {
+    if (status != CUBLAS_STATUS_SUCCESS) {
+        throw std::runtime_error(std::string(msg) + " : cuBLAS error");
+    }
+}
+
 void check_cudnn(cudnnStatus_t status, const char* msg) {
     if (status != CUDNN_STATUS_SUCCESS) {
         throw std::runtime_error(std::string(msg) + " : " + cudnnGetErrorString(status));
