@@ -448,6 +448,8 @@ inline void run_fc_layer(cublasHandle_t handle,
 
     float alpha = 1.0f;
     float beta = 0.0f;
+    check_cublas(cublasSetStream(handle, stream), "set stream");
+    
     // 1. GEMM call (Row-Major Output)
     // M = out_features, N = batch, K = in_features
     check_cublas(cublasSgemm(handle, 
