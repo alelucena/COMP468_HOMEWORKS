@@ -458,7 +458,7 @@ inline void run_fc_layer(cublasHandle_t handle,
                             d_input, batch,         // lda = batch
                             d_weight, in_features,  // ldb = in_features
                             &beta,
-                            d_output, batch));      // ldc = batch
+                            d_output, batch), "GEMM");      // ldc = batch
     
     // 2. Launch Bias + Activation Kernel
     // Add a boolean flag to the kernel to decide whether to Tanh or not
