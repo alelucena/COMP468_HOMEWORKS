@@ -585,7 +585,8 @@ int main(int argc, char** argv) {
                   << " Batch=" << opt.batch
                   << " Algo=" << opt.algo
                   << " Time(ms)=" << elapsed_ms
-                  << " GFLOP/s=" << lenet_gflops(shape, elapsed_ms) << std::endl;
+                  << " GFLOP/s=" << lenet_gflops(shape, elapsed_ms) 
+                  << "Workspace_bytes=" << workspace_size << std::endl;
     } else {
         std::cout << "Forward pass executed (timing TODO incomplete)." << std::endl;
     }

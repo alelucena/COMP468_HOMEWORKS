@@ -8,7 +8,7 @@ IMPLS=(baseline fused)
 
 mkdir -p ../data
 LOG="../data/$(date +%Y%m%d_%H%M%S)_lenet_sweep.csv"
-echo "impl,batch,algo,time_ms,gflops" > "$LOG"
+echo "impl,batch,algo,time_ms,gflops,workspace_bytes" > "$LOG"
 
 for batch in "${BATCHES[@]}"; do
   for algo in "${ALGOS[@]}"; do
@@ -17,7 +17,7 @@ for batch in "${BATCHES[@]}"; do
       # TODO(student): parse stdout and append to CSV (e.g., grep GFLOP/s, awk fields).
       "$BIN" --batch "$batch" --algo "$algo" --impl "$impl" --no-verify 2>&1 \
       | grep "Impl=" \
-      |awk -F'[= ]' '{print $2","$6","$4","$8","$10}' >> "$LOG"
+      | awk -F'[= ]' '{print $2","$4","$6","$8","$10","$12}' >> "$LOG"
     done
   done
 done
