@@ -15,7 +15,9 @@ for batch in "${BATCHES[@]}"; do
     for impl in "${IMPLS[@]}"; do
       echo "Running $impl batch=$batch algo=$algo"
       # TODO(student): parse stdout and append to CSV (e.g., grep GFLOP/s, awk fields).
-      "$BIN" --batch "$batch" --algo "$algo" --impl "$impl" --no-verify
+      "$BIN" --batch "$batch" --algo "$algo" --impl "$impl" --no-verify 2>&1 \
+      | grep "Impl=" \
+      awk -F'[= ]' '{print $2","$6","$4","$8","$10}' >> "$LOG"
     done
   done
 done
