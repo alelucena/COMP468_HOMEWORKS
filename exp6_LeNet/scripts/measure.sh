@@ -3,8 +3,8 @@ set -euo pipefail
 
 BIN="../bin/dlenet"
 BATCHES=(32 64 128)
-ALGOS=(implicit_gemm implicit_precomp)
-IMPLS=(baseline fused)
+ALGOS=(implicit_gemm implicit_precomp fft)
+IMPLS=(baseline) #removed fused
 
 mkdir -p ../data
 LOG="../data/$(date +%Y%m%d_%H%M%S)_lenet_sweep.csv"
