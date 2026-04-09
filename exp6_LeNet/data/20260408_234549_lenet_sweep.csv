@@ -1,0 +1,10 @@
+impl,batch,algo,time_ms,gflops,workspace_bytes
+baseline,32,implicit_gemm,0.09,303.37,0
+baseline,32,implicit_precomp,0.09,305.98,0
+baseline,32,fft,0.16,171.18,1671768
+baseline,64,implicit_gemm,0.12,437.78,0
+baseline,64,implicit_precomp,0.10,527.56,0
+baseline,64,fft,0.16,324.13,3342936
+baseline,128,implicit_gemm,0.17,643.65,0
+baseline,128,implicit_precomp,0.13,805.71,0
+baseline,128,fft,0.20,532.99,6685272
