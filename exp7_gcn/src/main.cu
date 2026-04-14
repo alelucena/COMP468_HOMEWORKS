@@ -60,12 +60,18 @@ int main(int argc, char** argv) {
 
     GraphData graph;
     /* TODO(student): load CSR graph + features + labels from opt.graph_prefix using helpers. */
-    (void)graph;
+    build_graph_from_files(opt.graph_prefix, graph);
 
     cusparseHandle_t cusparse;
     check_cusparse(cusparseCreate(&cusparse), "cusparseCreate");
     cublasHandle_t cublas;
     check_cublas(cublasCreate(&cublas), "cublasCreate");
+
+    // Set up stream
+    cudaStream_t stream;
+    check_cuda(cudaStreamCreate(&stream), "create stream");
+    cusparseSetStream(cusparse, stream);
+    cublasSetStream(cublas, stream);
 
     cudaEvent_t start, stop;
     check_cuda(cudaEventCreate(&start), "create start event");
@@ -73,7 +79,7 @@ int main(int argc, char** argv) {
 
     DeviceGCNWorkspace workspace;
     /* TODO(student): allocate device buffers for features, normalized adjacency, intermediate activations, weights. */
-    (void)workspace;
+    allocate_device_graph(graph, workspace);
 
 
     // keep weights on host for dumping later
@@ -92,6 +98,48 @@ int main(int argc, char** argv) {
     if (opt.impl == "baseline") {
         check_cuda(cudaEventRecord(start), "record baseline start");
         /* TODO(student): run forward pass using cusparseSpMM + cublasSgemm per layer. */
+
+        // Weights: W0 is [input_dim x hidden_dim], W1 is [hidden_dim x num_classes]
+        float* d_WO = worksapce.d_weights;
+        float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
+
+        // --- Layer 1 --
+        // 1. Aggreation: temp = A_hat * features_in
+        // A[ N x N] * X[N x feature_dim] -> [N x feature_dim]
+        // rows=N, cols=feature_dim, K=N
+        run_sparse_dense_mm(cusparse, workspace, 
+                            graph.num_nodes, graph.feature_dim, graph.num_nodes,
+                            worspace.d_features_in, workspace.d_temp);
+
+        // 2. Weight multiply: features_out = temp * W0
+        // [N x feature_dim] * [feature_dim x hidden_dim] -> [N * hidden_dim]
+        // Signature: M, K, N (M=Nodes, K=Feat, N=Hidden)
+        run_dense_layer(cublas,
+                        graph.num_nodes, graph.feature_dim, opt.hidden_dim,
+                        workspace.d_temp, d_W0, workspace.d_features_out);
+        
+
+        // 3. Activation
+        apply_activation(workspace.d_features_out, graph.num_nodes * opt.hidden_dim, stream);
+
+        // -- Layer 2 --
+
+        // 4. Aggregation: temp = A_hat * features_out
+        // [N x N] * [N * hidden_dim] -> [N * hidden_dim]
+        // Signature: rows, cols, K
+        run_sparse_dense_mm(cusparse, workspace,
+                            graph.num_nodes, opt.hidden_dim, graph.num_nodes,
+                            workspace.d_features_out, workspace.d_temp);
+
+        // 5. Weight multiply
+        // [N * hidden_dim] * [hidden_dim x num_classes] -> [N x num_classes]
+        // Signature: M, K, N (M=Nodes, K=Hidden, N=Classes)
+        run_dense_layer(cublas, 
+                        graph.num_nodes, opt.hidden_dim, graph.num_classes,
+                        workspace.d_temp, d_W1, workspace.d_logits);
+        
+
+
         check_cuda(cudaEventRecord(stop), "record baseline stop");
         check_cuda(cudaEventSynchronize(stop), "sync baseline stop");
         check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed baseline");
@@ -107,6 +155,8 @@ int main(int argc, char** argv) {
 
     std::vector<float> h_logits(graph.num_nodes * graph.num_classes, 0.0f);
     /* TODO(student): copy device logits back into h_logits. */
+    cudaMemcpyAsync(h_logits.data(), workspace.d_logits, graph.num_nodes * graph.num_classes * sizeof(float), cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
 
     if (!opt.dump_path.empty()) {
         std::ofstream ofs(opt.dump_path, std::ios::binary);
@@ -120,6 +170,7 @@ int main(int argc, char** argv) {
 
     if (opt.verify) {
         /* TODO(student): run DGL/PyTorch reference (e.g., via subprocess) or CPU path to compare logits. */
+        std::system("python /storage-home/a/ajl18/comp468/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
     }
 
     if (elapsed_ms > 0.0f) {
@@ -136,5 +187,16 @@ int main(int argc, char** argv) {
     }
 
     /* TODO(student): free device buffers, destroy cuBLAS/cuSPARSE handles, destroy events. */
+    
+    // 1. Library Cleanup
+    check_cusparse(cusparseDestroy(cusparse), "destroy cusparse");
+    check_cublas(cublasDestroy(cublas), "destroy cublas");
+
+    // 2. Graph
+    destroy_device_graph(workspace);
+
+    // 3. Synchronization/Event Cleanup
+    cudaEventDestroy(start); cudaEventDestroy(stop);
+    cudaStreamDestroy(stream);
     return 0;
 }
