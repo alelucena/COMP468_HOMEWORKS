@@ -398,7 +398,7 @@ __global__ void fused_linear_relu_kernel(
     if (row < M && col < N) {
         float sum = 0.0f;
         for (int i = 0; i < K; ++i) {
-            sum += in_features[row * K + i] * weights[i * N + col];
+            sum += in_features[row * K + i] * weights[col * K + i]; // Weight as [N x K]
         }
         
         // FUSION POINT: Apply ReLU before writing to DRAM
