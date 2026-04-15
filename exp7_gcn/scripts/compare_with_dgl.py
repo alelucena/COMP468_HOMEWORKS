@@ -93,7 +93,7 @@ except ImportError:
     dgl = None
 
 
-    
+
 class DGLGCN(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, num_classes: int, layers: int) -> None:
         super().__init__()
@@ -106,7 +106,7 @@ class DGLGCN(torch.nn.Module):
                 self.layers.append(GraphConv(hidden_dim, hidden_dim, norm='both', weight=True, bias=True))
             self.layers.append(GraphConv(hidden_dim, num_classes, norm='both', weight=True, bias=True))
 
-    def forward(self, graph: dgl.DGLGraph, feat: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def forward(self, graph, feat: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         x = feat
         for idx, layer in enumerate(self.layers):
             x = layer(graph, x)
