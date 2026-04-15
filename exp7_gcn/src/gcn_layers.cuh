@@ -357,24 +357,39 @@ inline void softmax_cross_entropy(const float* d_logits,
     (void)d_loss;
 }
 
-__global__ void fused_linear_relu_kernel(
-    const float* X, // [M x K] Row-Major
-    const float* W, // [K x N] Row-Major
-    float* Y,       // [M x N] Row-Major
-    int M, int K, int N) 
+/**
+ * Fused Dense Linear + Activation Kernel
+ * Computes: Y = Activation(X * W)
+ * Layout: X [M x K] (Row-Major), W [K x N] (Row-Major), Y [M x N] (Row-Major)
+ */
+__global__ void fused_linear_act_kernel(
+    const float* __restrict__ X, 
+    const float* __restrict__ W, 
+    float* __restrict__ Y,
+    int M, int K, int N,
+    bool apply_relu) 
 {
-    // row corresponds to nodes (M), col corresponds to output features (N)
+    // row maps to the node index (0 to num_nodes - 1)
+    // col maps to the feature index (0 to out_dim - 1)
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     int col = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < M && col < N) {
         float acc = 0.0f;
+        
+        // Dot product of X[row, :] and W[:, col]
         for (int k = 0; k < K; ++k) {
-            // Both are indexed as Row-Major
+            // Indexing X as Row-Major [M x K]: row * stride_K + k
+            // Indexing W as Row-Major [K x N]: k * stride_N + col
             acc += X[row * K + k] * W[k * N + col];
         }
 
-        // Apply ReLU (Activation Fusion)
-        Y[row * N + col] = (acc > 0.0f) ? acc : 0.0f;
+        // Fusion: Apply ReLU in registers before writing to DRAM
+        if (apply_relu) {
+            acc = fmaxf(0.0f, acc);
+        }
+
+        // Store result back to Row-Major output matrix
+        Y[row * N + col] = acc;
     }
 }
