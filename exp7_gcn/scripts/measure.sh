@@ -16,7 +16,9 @@ for graph in "${GRAPHS[@]}"; do
     for impl in "${IMPLS[@]}"; do
       echo "Running $impl graph=$graph hidden=$hidden"
       # TODO(student): parse stdout and append to CSV using awk or python -c helper.
-      "$BIN" --graph "$graph" --hidden "$hidden" --layers "$LAYERS" --impl "$impl" --no-verify
+      "$BIN" --graph "$graph" --hidden "$hidden" --layers "$LAYERS" --impl "$impl" --no-verify 2>&1 \
+      | grep "Impl=" \
+      | awk -F'[= ]' '{print $2","$4","$6","$8","$10}' >> "$LOG"
     done
   done
 done
