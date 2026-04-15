@@ -270,8 +270,8 @@ inline void run_sparse_dense_mm(cusparseHandle_t handle,
     size_t workspaceSize = 0;
     check_cusparse(cusparseSpMM_bufferSize(
         handle,
-        CUSPARESE_OPERATION_NON_TRANSPOSE, // Op A (sparse)
-        CUSPARESE_OPERATION_NON_TRANSPOSE, // Op B (dense)
+        CUSPARSE_OPERATION_NON_TRANSPOSE, // Op A (sparse)
+        CUSPARSE_OPERATION_NON_TRANSPOSE, // Op B (dense)
         &alpha, workspace.spmat, dn_in, &beta, dn_out,
         CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, &workspaceSize
     ), "SpMM_bufferSize");
@@ -333,7 +333,7 @@ inline void apply_activation(float* d_tensor, int elements, cudaStream_t stream)
 
     int threads = 256;
     int blocks = (elements + threads - 1) / threads;
-    relu_kernel<<blocks, threads, 0, stream>>(d_tensor, elements);
+    relu_kernel<<<blocks, threads, 0, stream>>>(d_tensor, elements);
 }
 
 inline void apply_dropout(float* d_tensor, int elements, float drop_prob, cudaStream_t stream) {
