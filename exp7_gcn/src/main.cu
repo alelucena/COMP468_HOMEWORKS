@@ -173,14 +173,14 @@ int main(int argc, char** argv) {
         float* d_W0 = workspace.d_weights;
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
-        // --- LAYER 1 ---
-        // 1. Aggregation (A_hat * X)
+        // 1. Layer 1 Aggregation
         run_sparse_dense_mm(cusparse, workspace, 
                             graph.num_nodes, graph.feature_dim, graph.num_nodes,
                             workspace.d_features_in, workspace.d_temp);
 
-        // 2. Fused Linear + ReLU
+        // 2. Layer 1 Fused (Nodes x Feat_Dim) * (Feat_Dim x Hidden)
         dim3 block(16, 16);
+        // grid.x = rows (nodes), grid.y = cols (hidden_dim)
         dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
                   (opt.hidden_dim + block.y - 1) / block.y);
 
@@ -189,15 +189,12 @@ int main(int argc, char** argv) {
             graph.num_nodes, graph.feature_dim, opt.hidden_dim, true
         );
 
-        // --- LAYER 2 ---
-        // 3. Aggregation (A_hat * H)
+        // 3. Layer 2 Aggregation
         run_sparse_dense_mm(cusparse, workspace,
                             graph.num_nodes, opt.hidden_dim, graph.num_nodes,
                             workspace.d_features_out, workspace.d_temp);
 
-        // 4. Final Dense (No ReLU)
-        // Note: Using the baseline helper here is the safest way to ensure 
-        // that your Logits match the baseline exactly for your comparison script.
+        // 4. Layer 2 Linear
         run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
                         workspace.d_temp, d_W1, workspace.d_logits);
 
