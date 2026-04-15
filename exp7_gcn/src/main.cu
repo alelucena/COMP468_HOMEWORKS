@@ -95,6 +95,8 @@ int main(int argc, char** argv) {
             ofs.write(reinterpret_cast<const char*>(h_weights.data()), h_weights.size() * sizeof(float));
             ofs.close();
             std::cout << "Weights dumped to weights.bin for verification." << std::endl;
+        } else {
+            std::cerr << "Error: Could not write to weights.bin" << std::endl;
         }
     }
 
@@ -174,7 +176,7 @@ int main(int argc, char** argv) {
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
         // --- Layer 1 ---
-        // 1. Aggregation (Library call is fine here)
+        // 1. Aggregation 
         run_sparse_dense_mm(cusparse, workspace, 
                             graph.num_nodes, graph.feature_dim, graph.num_nodes,
                             workspace.d_features_in, workspace.d_temp);
@@ -185,7 +187,7 @@ int main(int argc, char** argv) {
         dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
                   (opt.hidden_dim + block.y - 1) / block.y);
 
-        fused_linear_relu_kernel<<<grid, block, 0, stream>>>(
+       fused_linear_relu_kernel<<<grid, block, 0, stream>>>(
             workspace.d_temp, d_W0, workspace.d_features_out,
             graph.num_nodes, graph.feature_dim, opt.hidden_dim
         );

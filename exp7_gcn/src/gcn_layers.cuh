@@ -357,51 +357,27 @@ inline void softmax_cross_entropy(const float* d_logits,
     (void)d_loss;
 }
 
-// __global__ void fused_agg_relu_kernel(
-//     const int* __restrict__ row_offsets,
-//     const int* __restrict__ col_indices,
-//     const float* __restrict__ in_feat,
-//     float* __restrict__ out_temp,
-//     int num_nodes,
-//     int dim) 
-// {
-//     int node_idx = blockIdx.x * blockDim.x + threadIdx.x;
-//     if (node_idx >= num_nodes) return;
-
-//     int start = row_offsets[node_idx];
-//     int end = row_offsets[node_idx + 1];
-
-//     // Process each feature dimension for this node
-//     for (int d = 0; d < dim; ++d) {
-//         float sum = 0.0f;
-        
-//         // Neighborhood Aggregation
-//         for (int i = start; i < end; ++i) {
-//             int neighbor = col_indices[i];
-//             sum += in_feat[neighbor * dim + d];
-//         }
-
-//         // Apply ReLU before the write to Global Memory (fusion of agg. + activation)
-//         out_temp[node_idx * dim + d] = (sum > 0.0f) ? sum : 0.0f;
-//     }
-// }
-
 __global__ void fused_linear_relu_kernel(
-    const float* __restrict__ in_features, // The AX result from d_temp
-    const float* __restrict__ weights,     // W0 or W1
-    float* __restrict__ out_features,      // Final layer output
-    int M, int K, int N)                   // M=nodes, K=in_dim, N=out_dim
+    const float* X, // [M x K]
+    const float* W, // [K x N]
+    float* Y,       // [M x N]
+    int M, int K, int N) 
 {
+    // row corresponds to the M dimension (nodes)
+    // col corresponds to the N dimension (out_features)
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     int col = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < M && col < N) {
-        float sum = 0.0f;
-        for (int i = 0; i < K; ++i) {
-            sum += in_features[row * K + i] * weights[col * K + i]; // Weight as [N x K]
+        float acc = 0.0f;
+        for (int k = 0; k < K; ++k) {
+            // Row-major indexing for both:
+            // X is [M, K] -> index is row * K + k
+            // W is [K, N] -> index is k * N + col
+            acc += X[row * K + k] * W[k * N + col];
         }
-        
-        // FUSION POINT: Apply ReLU before writing to DRAM
-        out_features[row * N + col] = (sum > 0.0f) ? sum : 0.0f;
+
+        // Apply ReLU (Activation Fusion)
+        Y[row * N + col] = (acc > 0.0f) ? acc : 0.0f;
     }
 }
