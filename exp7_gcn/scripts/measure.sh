@@ -18,7 +18,7 @@ for graph in "${GRAPHS[@]}"; do
       # TODO(student): parse stdout and append to CSV using awk or python -c helper.
       "$BIN" --graph "$graph" --hidden "$hidden" --layers "$LAYERS" --impl "$impl" --no-verify 2>&1 \
       | grep "Impl=" \
-      | awk -F'[= ]' '{print $2","$4","$6","$8","$10}' >> "$LOG"
+      | awk -F'[= ]' '{print $2","$4","$6","$8","$10","$12}' >> "$LOG"
     done
   done
 done
