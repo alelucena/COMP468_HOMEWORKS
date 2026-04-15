@@ -166,39 +166,38 @@ int main(int argc, char** argv) {
 
         check_cuda(cudaEventRecord(stop), "record baseline stop");
         check_cuda(cudaEventSynchronize(stop), "sync baseline stop");
-        check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed baseline");
+        check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed baseline"); 
     } else if (opt.impl == "fused") {
         check_cuda(cudaEventRecord(start), "record fused start");
-        /* TODO(student): implement fused kernels (e.g., combine aggregation + activation) and time here. */
 
-        // Weights: W0 is [input_dim x hidden_dim], W1 is [hidden_dim x num_classes]
         float* d_W0 = workspace.d_weights;
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
-        // --- Layer 1 ---
-        // 1. Aggregation 
+        // --- LAYER 1 ---
+        // 1. Aggregation (A_hat * X)
         run_sparse_dense_mm(cusparse, workspace, 
                             graph.num_nodes, graph.feature_dim, graph.num_nodes,
                             workspace.d_features_in, workspace.d_temp);
 
-        // 2. FUSED: Linear Layer + Activation
-        // This replaces run_dense_layer AND apply_activation
+        // 2. Fused Linear + ReLU
         dim3 block(16, 16);
         dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
                   (opt.hidden_dim + block.y - 1) / block.y);
 
-       fused_linear_relu_kernel<<<grid, block, 0, stream>>>(
+        fused_linear_act_kernel<<<grid, block, 0, stream>>>(
             workspace.d_temp, d_W0, workspace.d_features_out,
-            graph.num_nodes, graph.feature_dim, opt.hidden_dim
+            graph.num_nodes, graph.feature_dim, opt.hidden_dim, true
         );
 
-        // --- Layer 2 ---
-        // 3. Aggregation
+        // --- LAYER 2 ---
+        // 3. Aggregation (A_hat * H)
         run_sparse_dense_mm(cusparse, workspace,
                             graph.num_nodes, opt.hidden_dim, graph.num_nodes,
                             workspace.d_features_out, workspace.d_temp);
 
-        // 4. Final Linear (No ReLU on last layer usually, use your baseline helper)
+        // 4. Final Dense (No ReLU)
+        // Note: Using the baseline helper here is the safest way to ensure 
+        // that your Logits match the baseline exactly for your comparison script.
         run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
                         workspace.d_temp, d_W1, workspace.d_logits);
 
