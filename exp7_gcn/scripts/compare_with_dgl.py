@@ -152,7 +152,10 @@ def load_graph(prefix: str):
     feat_path = pathlib.Path(prefix).with_suffix('.feat')
     label_path = pathlib.Path(prefix).with_suffix('.label')
 
-    csr_data = np.load(csr_path, allow_pickle=True)
+    # csr_data = np.load(csr_path, allow_pickle=True)
+    import pickle
+    with open(csr_path, 'rb') as f:
+        csr_data = pickle.load(f)
     indptr = csr_data['indptr'].astype(np.int64)
     indices = csr_data['indices'].astype(np.int64)
 
