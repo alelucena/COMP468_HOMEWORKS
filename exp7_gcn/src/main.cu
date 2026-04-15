@@ -56,6 +56,7 @@ Options parse_args(int argc, char** argv) {
 
 
 int main(int argc, char** argv) {
+    srand(42); // Set a fixed seed so rand() always produces the same sequence
     Options opt = parse_args(argc, argv);
 
     GraphData graph;
@@ -238,7 +239,7 @@ int main(int argc, char** argv) {
                         graph.num_nodes, opt.hidden_dim, graph.num_classes,
                         workspace.d_temp, d_W1, workspace.d_logits);
 
-                        
+
         check_cuda(cudaEventRecord(stop), "record fused stop");
         check_cuda(cudaEventSynchronize(stop), "sync fused stop");
         check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed fused");
