@@ -2,45 +2,89 @@
 """Run a reference GCN in DGL/PyTorch and compare logits with the CUDA implementation."""
 
 
+# import sys
+# import os
+
+# # --- CLUSTER PATH INJECTION ---
+# # We force the system to look at the official PyTorch and SciPy modules first
+# cluster_paths = [
+#     '/opt/apps/software/PyTorch/2.3.0-foss-2023b/lib/python3.11/site-packages',
+#     '/opt/apps/software/SciPy-bundle/2023.11-gfbf-2023b/lib/python3.11/site-packages',
+#     os.path.expanduser('~/.local/lib/python3.11/site-packages')
+# ]
+
+# for path in cluster_paths:
+#     if path not in sys.path:
+#         sys.path.insert(0, path)
+# # ------------------------------
+
+# import numpy as np
+# import torch
+# # ... the rest of your imports
+
+
+
+
+# import argparse
+# import pathlib
+# import sys
+# import time
+# from typing import Tuple
+# import os
+# import numpy as np
+# import torch
+# import torch.nn.functional as F
+
+# try:
+#     import dgl
+#     from dgl.nn import GraphConv
+# except ImportError as exc:  # pragma: no cover - optional dependency
+#     raise SystemExit("This script requires DGL. Install via pip install dgl-cu12.") from exc
+
+
+
+
+
+#!/usr/bin/env python
+"""Run a reference GCN in DGL/PyTorch and compare logits with the CUDA implementation."""
+
 import sys
 import os
 
-# --- CLUSTER PATH INJECTION ---
-# We force the system to look at the official PyTorch and SciPy modules first
+# 1. Force Disable Graphbolt before DGL is even touched
+os.environ['DGL_DISABLE_GRAPHBOLT'] = '1'
+
+# 2. Updated Cluster Path Injection for PyTorch 2.1.2 (GCC 12 stack)
 cluster_paths = [
-    '/opt/apps/software/PyTorch/2.3.0-foss-2023b/lib/python3.11/site-packages',
-    '/opt/apps/software/SciPy-bundle/2023.11-gfbf-2023b/lib/python3.11/site-packages',
+    '/opt/apps/software/PyTorch/2.1.2-foss-2023a/lib/python3.11/site-packages',
+    '/opt/apps/software/SciPy-bundle/2023.07-gfbf-2023a/lib/python3.11/site-packages',
     os.path.expanduser('~/.local/lib/python3.11/site-packages')
 ]
 
 for path in cluster_paths:
     if path not in sys.path:
         sys.path.insert(0, path)
-# ------------------------------
 
-import numpy as np
-import torch
-# ... the rest of your imports
-
-
-
-
+# 3. Standard Imports
 import argparse
 import pathlib
-import sys
 import time
 from typing import Tuple
-import os
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+# 4. Resilient DGL Import
 try:
     import dgl
     from dgl.nn import GraphConv
-except ImportError as exc:  # pragma: no cover - optional dependency
-    raise SystemExit("This script requires DGL. Install via pip install dgl-cu12.") from exc
-
+except ImportError as exc:
+    # If the Graphbolt binary error still bubbles up, we catch it here
+    if "Graphbolt" in str(exc):
+        print("Warning: Graphbolt C++ failure bypassed. Using DGL Core.")
+        from dgl.nn import GraphConv
+    else:
+        raise SystemExit(f"DGL Import Error: {exc}\nTry: export DGL_DISABLE_GRAPHBOLT=1") from exc
 
 class DGLGCN(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, num_classes: int, layers: int) -> None:
