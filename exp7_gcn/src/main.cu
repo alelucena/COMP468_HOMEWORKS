@@ -170,34 +170,75 @@ int main(int argc, char** argv) {
     } else if (opt.impl == "fused") {
         check_cuda(cudaEventRecord(start), "record fused start");
 
+        // float* d_W0 = workspace.d_weights;
+        // float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
+
+        // // 1. Layer 1 Aggregation
+        // run_sparse_dense_mm(cusparse, workspace, 
+        //                     graph.num_nodes, graph.feature_dim, graph.num_nodes,
+        //                     workspace.d_features_in, workspace.d_temp);
+
+        // // 2. Layer 1 Fused (Nodes x Feat_Dim) * (Feat_Dim x Hidden)
+        // dim3 block(16, 16);
+        // // grid.x = rows (nodes), grid.y = cols (hidden_dim)
+        // dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
+        //           (opt.hidden_dim + block.y - 1) / block.y);
+
+        // fused_linear_act_kernel<<<grid, block, 0, stream>>>(
+        //     workspace.d_temp, d_W0, workspace.d_features_out,
+        //     graph.num_nodes, graph.feature_dim, opt.hidden_dim, true
+        // );
+
+        // // 3. Layer 2 Aggregation
+        // run_sparse_dense_mm(cusparse, workspace,
+        //                     graph.num_nodes, opt.hidden_dim, graph.num_nodes,
+        //                     workspace.d_features_out, workspace.d_temp);
+
+        // // 4. Layer 2 Linear
+        // run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
+        //                 workspace.d_temp, d_W1, workspace.d_logits);
+
+
+        // Weights: W0 is [input_dim x hidden_dim], W1 is [hidden_dim x num_classes]
         float* d_W0 = workspace.d_weights;
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
-        // 1. Layer 1 Aggregation
+        // --- Layer 1 --
+        // 1. Aggreation: temp = A_hat * features_in
+        // A[ N x N] * X[N x feature_dim] -> [N x feature_dim]
+        // rows=N, cols=feature_dim, K=N
         run_sparse_dense_mm(cusparse, workspace, 
                             graph.num_nodes, graph.feature_dim, graph.num_nodes,
                             workspace.d_features_in, workspace.d_temp);
 
-        // 2. Layer 1 Fused (Nodes x Feat_Dim) * (Feat_Dim x Hidden)
-        dim3 block(16, 16);
-        // grid.x = rows (nodes), grid.y = cols (hidden_dim)
-        dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
-                  (opt.hidden_dim + block.y - 1) / block.y);
+        // 2. Weight multiply: features_out = temp * W0
+        // [N x feature_dim] * [feature_dim x hidden_dim] -> [N * hidden_dim]
+        // Signature: M, K, N (M=Nodes, K=Feat, N=Hidden)
+        run_dense_layer(cublas,
+                        graph.num_nodes, graph.feature_dim, opt.hidden_dim,
+                        workspace.d_temp, d_W0, workspace.d_features_out);
+        
 
-        fused_linear_act_kernel<<<grid, block, 0, stream>>>(
-            workspace.d_temp, d_W0, workspace.d_features_out,
-            graph.num_nodes, graph.feature_dim, opt.hidden_dim, true
-        );
+        // 3. Activation
+        apply_activation(workspace.d_features_out, graph.num_nodes * opt.hidden_dim, stream);
 
-        // 3. Layer 2 Aggregation
+        // -- Layer 2 --
+
+        // 4. Aggregation: temp = A_hat * features_out
+        // [N x N] * [N * hidden_dim] -> [N * hidden_dim]
+        // Signature: rows, cols, K
         run_sparse_dense_mm(cusparse, workspace,
                             graph.num_nodes, opt.hidden_dim, graph.num_nodes,
                             workspace.d_features_out, workspace.d_temp);
 
-        // 4. Layer 2 Linear
-        run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
+        // 5. Weight multiply
+        // [N * hidden_dim] * [hidden_dim x num_classes] -> [N x num_classes]
+        // Signature: M, K, N (M=Nodes, K=Hidden, N=Classes)
+        run_dense_layer(cublas, 
+                        graph.num_nodes, opt.hidden_dim, graph.num_classes,
                         workspace.d_temp, d_W1, workspace.d_logits);
 
+                        
         check_cuda(cudaEventRecord(stop), "record fused stop");
         check_cuda(cudaEventSynchronize(stop), "sync fused stop");
         check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed fused");
