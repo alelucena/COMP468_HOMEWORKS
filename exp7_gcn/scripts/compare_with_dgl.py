@@ -1,6 +1,30 @@
 #!/usr/bin/env python3
 """Run a reference GCN in DGL/PyTorch and compare logits with the CUDA implementation."""
 
+
+import sys
+import os
+
+# --- CLUSTER PATH INJECTION ---
+# We force the system to look at the official PyTorch and SciPy modules first
+cluster_paths = [
+    '/opt/apps/software/PyTorch/2.3.0-foss-2023b/lib/python3.11/site-packages',
+    '/opt/apps/software/SciPy-bundle/2023.11-gfbf-2023b/lib/python3.11/site-packages',
+    os.path.expanduser('~/.local/lib/python3.11/site-packages')
+]
+
+for path in cluster_paths:
+    if path not in sys.path:
+        sys.path.insert(0, path)
+# ------------------------------
+
+import numpy as np
+import torch
+# ... the rest of your imports
+
+
+
+
 import argparse
 import pathlib
 import sys
