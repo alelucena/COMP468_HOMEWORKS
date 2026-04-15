@@ -358,24 +358,33 @@ inline void softmax_cross_entropy(const float* d_logits,
 }
 
 /**
- * Fused Dense Linear + Activation Kernel
- * Computes: Y = Activation(X * W)
- * Layout: X [M x K] (Row-Major), W [K x N] (Row-Major), Y [M x N] (Row-Major)
+ * Fused Linear Layer + ReLU Activation
+ * Computes: Y = ReLU(X * W)
+ * X: [M x K] Row-Major (Intermediate features)
+ * W: [K x N] Row-Major (Weights)
+ * Y: [M x N] Row-Major (Output)
  */
-__global__ void fused_linear_act_kernel(
-    const float* X, const float* W, float* Y,
-    int M, int K, int N, bool apply_relu) 
+__global__ void fused_linear_relu_kernel(
+    const float* __restrict__ X, 
+    const float* __restrict__ W, 
+    float* __restrict__ Y,
+    int M, int K, int N) 
 {
+    // row maps to Nodes (M), col maps to Output Features (N)
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     int col = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < M && col < N) {
         float acc = 0.0f;
+        
+        // Dot product: Row of X * Column of W
         for (int k = 0; k < K; ++k) {
-            // This matches the CUBLAS_OP_N swap trick layout
-            acc += X[row * K + k] * W[col * K + k]; 
+            // Indexing X[row, k] -> row * K + k
+            // Indexing W[k, col] -> k * N + col
+            acc += X[row * K + k] * W[k * N + col];
         }
-        if (apply_relu) acc = fmaxf(0.0f, acc);
-        Y[row * N + col] = acc;
+
+        // Fusion: Apply ReLU activation
+        Y[row * N + col] = fmaxf(0.0f, acc);
     }
 }
