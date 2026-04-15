@@ -285,8 +285,8 @@ inline void run_sparse_dense_mm(cusparseHandle_t handle,
     // 5. Execute SpMM: C = alpha * A * B  + beta * C
     check_cusparse(cusparseSpMM(
         handle,
-          CUSPARESE_OPERATION_NON_TRANSPOSE, 
-        CUSPARESE_OPERATION_NON_TRANSPOSE,
+        CUSPARSE_OPERATION_NON_TRANSPOSE, 
+        CUSPARSE_OPERATION_NON_TRANSPOSE,
         &alpha, workspace.spmat, dn_in, &beta, dn_out,
         CUDA_R_32F, CUSPARSE_SPMM_ALG_DEFAULT, d_spmm_work
     ), "SpMM execute");
