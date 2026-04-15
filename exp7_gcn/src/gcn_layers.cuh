@@ -358,26 +358,23 @@ inline void softmax_cross_entropy(const float* d_logits,
 }
 
 __global__ void fused_linear_relu_kernel(
-    const float* X, // [M x K]
-    const float* W, // [K x N]
-    float* Y,       // [M x N]
+    const float* X, // [M x K] Row-Major
+    const float* W, // [K x N] Column-Major (to match baseline cuBLAS)
+    float* Y,       // [M x N] Row-Major
     int M, int K, int N) 
 {
-    // row corresponds to the M dimension (nodes)
-    // col corresponds to the N dimension (out_features)
     int row = blockIdx.x * blockDim.x + threadIdx.x;
     int col = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < M && col < N) {
         float acc = 0.0f;
         for (int k = 0; k < K; ++k) {
-            // Row-major indexing for both:
-            // X is [M, K] -> index is row * K + k
-            // W is [K, N] -> index is k * N + col
-            acc += X[row * K + k] * W[k * N + col];
+            // X is Row-Major: [row, k] -> row * K + k
+            // W is Column-Major: [k, col] -> col * K + k  <-- KEY CHANGE
+            acc += X[row * K + k] * W[col * K + k];
         }
 
-        // Apply ReLU (Activation Fusion)
+        // Apply ReLU
         Y[row * N + col] = (acc > 0.0f) ? acc : 0.0f;
     }
 }
