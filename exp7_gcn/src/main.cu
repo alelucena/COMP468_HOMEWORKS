@@ -79,8 +79,29 @@ int main(int argc, char** argv) {
 
     DeviceGCNWorkspace workspace;
     /* TODO(student): allocate device buffers for features, normalized adjacency, intermediate activations, weights. */
-    allocate_device_graph(graph, workspace);
+    allocate_device_graph(graph, workspace, opt.hidden_dim);
 
+    // 1. Initialize weights on host
+    size_t weights_count = (graph.feature_dim * opt.hidden_dim) + (opt.hidden_dim * graph.num_classes);
+    std::vector<float> h_weights(weights_count);
+    for (size_t i = 0; i < weights_count; ++i) {
+        h_weights[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+    }
+
+    // 2. Dump weights so Python can use the SAME ones for verification
+    if (opt.verify) {
+        std::ofstream ofs("weights.bin", std::ios::binary);
+        if (ofs) {
+            ofs.write(reinterpret_cast<const char*>(h_weights.data()), h_weights.size() * sizeof(float));
+            ofs.close();
+            std::cout << "Weights dumped to weights.bin for verification." << std::endl;
+        }
+    }
+
+    // 3. Move them to GPU
+    check_cuda(cudaMemcpy(workspace.d_weights, h_weights.data(), 
+                        weights_count * sizeof(float), 
+                        cudaMemcpyHostToDevice), "Copy weights");
 
     // keep weights on host for dumping later
     //  --dump is required; --verify may also need it
@@ -94,13 +115,14 @@ int main(int argc, char** argv) {
     //         std::cerr << "Error: Could not write to weights.bin" << std::endl;
     //     }
     // }
+
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline") {
         check_cuda(cudaEventRecord(start), "record baseline start");
         /* TODO(student): run forward pass using cusparseSpMM + cublasSgemm per layer. */
 
         // Weights: W0 is [input_dim x hidden_dim], W1 is [hidden_dim x num_classes]
-        float* d_WO = worksapce.d_weights;
+        float* d_W0 = workspace.d_weights;
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
         // --- Layer 1 --
@@ -109,7 +131,7 @@ int main(int argc, char** argv) {
         // rows=N, cols=feature_dim, K=N
         run_sparse_dense_mm(cusparse, workspace, 
                             graph.num_nodes, graph.feature_dim, graph.num_nodes,
-                            worspace.d_features_in, workspace.d_temp);
+                            workspace.d_features_in, workspace.d_temp);
 
         // 2. Weight multiply: features_out = temp * W0
         // [N x feature_dim] * [feature_dim x hidden_dim] -> [N * hidden_dim]
