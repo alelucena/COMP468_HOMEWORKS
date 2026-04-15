@@ -192,7 +192,15 @@ int main(int argc, char** argv) {
 
     if (opt.verify) {
         /* TODO(student): run DGL/PyTorch reference (e.g., via subprocess) or CPU path to compare logits. */
-        std::system("python /home/ajl18/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
+        //std::system("python /home/ajl18/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
+        std::string cmd = "python scripts/compare_with_dgl.py "
+                  "--graph " + std::string(opt.graph_prefix) + " "
+                  "--hidden " + std::to_string(opt.hidden_dim) + " "
+                  "--layers " + std::to_string(opt.layers) + " "
+                  "--outputs outputs.bin";
+
+std::cout << "Running verification: " << cmd << std::endl;
+std::system(cmd.c_str());
     }
 
     if (elapsed_ms > 0.0f) {
