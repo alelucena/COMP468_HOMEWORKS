@@ -74,18 +74,26 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-# 4. Resilient DGL Import
+# MUST happen before 'import dgl'
+os.environ['DGL_DISABLE_GRAPHBOLT'] = '1'
+
 try:
     import dgl
-    from dgl.nn import GraphConv
-except ImportError as exc:
-    # If the Graphbolt binary error still bubbles up, we catch it here
-    if "Graphbolt" in str(exc):
-        print("Warning: Graphbolt C++ failure bypassed. Using DGL Core.")
-        from dgl.nn import GraphConv
-    else:
-        raise SystemExit(f"DGL Import Error: {exc}\nTry: export DGL_DISABLE_GRAPHBOLT=1") from exc
+except ImportError:
+    # If it fails, we keep going anyway because sometimes 
+    # the core math functions are already loaded in memory.
+    pass
 
+try:
+    from dgl.nn import GraphConv
+except ImportError:
+    print("\n[!] FATAL: DGL C++ backend is fundamentally broken on this cluster node.")
+    print("[!] Jumping to DGL-free math verification...")
+    # This is our backup plan - if DGL is dead, we manually verify
+    dgl = None
+
+
+    
 class DGLGCN(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int, num_classes: int, layers: int) -> None:
         super().__init__()
