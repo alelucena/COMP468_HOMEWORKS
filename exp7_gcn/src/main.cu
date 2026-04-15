@@ -174,29 +174,29 @@ int main(int argc, char** argv) {
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
         // --- Layer 1 ---
-        dim3 block(256);
-        dim3 grid((graph.num_nodes + block.x - 1) / block.x);
+        // 1. Aggregation (Library call is fine here)
+        run_sparse_dense_mm(cusparse, workspace, 
+                            graph.num_nodes, graph.feature_dim, graph.num_nodes,
+                            workspace.d_features_in, workspace.d_temp);
 
-        // 1. FUSED: Aggregation (A_hat * X) + ReLU
-        // This replaces both run_sparse_dense_mm and apply_activation
-        fused_agg_relu_kernel<<<grid, block, 0, stream>>>(
-            workspace.d_csr_row_offsets, 
-            workspace.d_csr_col_indices,
-            workspace.d_features_in, 
-            workspace.d_temp, 
-            graph.num_nodes, graph.feature_dim
+        // 2. FUSED: Linear Layer + Activation
+        // This replaces run_dense_layer AND apply_activation
+        dim3 block(16, 16);
+        dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
+                  (opt.hidden_dim + block.y - 1) / block.y);
+
+        fused_linear_relu_kernel<<<grid, block, 0, stream>>>(
+            workspace.d_temp, d_W0, workspace.d_features_out,
+            graph.num_nodes, graph.feature_dim, opt.hidden_dim
         );
 
-        // 2. Linear Layer (temp * W0)
-        run_dense_layer(cublas, graph.num_nodes, graph.feature_dim, opt.hidden_dim,
-                        workspace.d_temp, d_W0, workspace.d_features_out);
-
         // --- Layer 2 ---
-        // 3. Aggregation for Layer 2 (Standard, usually no ReLU on logits)
-        run_sparse_dense_mm(cusparse, workspace, graph.num_nodes, opt.hidden_dim, graph.num_nodes,
+        // 3. Aggregation
+        run_sparse_dense_mm(cusparse, workspace,
+                            graph.num_nodes, opt.hidden_dim, graph.num_nodes,
                             workspace.d_features_out, workspace.d_temp);
 
-        // 4. Final Weight Multiply
+        // 4. Final Linear (No ReLU on last layer usually, use your baseline helper)
         run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
                         workspace.d_temp, d_W1, workspace.d_logits);
 
