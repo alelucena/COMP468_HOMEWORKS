@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
 
     if (opt.verify) {
         /* TODO(student): run DGL/PyTorch reference (e.g., via subprocess) or CPU path to compare logits. */
-        std::system("python /storage-home/a/ajl18/comp468/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
+        std::system("python /home/ajl18/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
     }
 
     if (elapsed_ms > 0.0f) {
