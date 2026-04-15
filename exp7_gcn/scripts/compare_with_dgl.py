@@ -147,7 +147,7 @@ def sync_weights(model):
             if layer.bias is not None:
                 layer.bias.data.fill_(0.0)
 
-def load_graph(prefix: str) -> Tuple[dgl.DGLGraph, torch.Tensor, torch.Tensor]:
+def load_graph(prefix: str):
     csr_path = pathlib.Path(prefix).with_suffix('.csr')
     feat_path = pathlib.Path(prefix).with_suffix('.feat')
     label_path = pathlib.Path(prefix).with_suffix('.label')
