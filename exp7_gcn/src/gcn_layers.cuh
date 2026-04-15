@@ -389,42 +389,46 @@ __global__ void fused_linear_relu_kernel(
     }
 }
 
-__global__ void fused_spmm_linear_kernel_reordered(
+/**
+ * Fused Aggregation + Activation
+ * Computes: Y = Activation(A_hat * X)
+ * A_hat: CSR Sparse Matrix [N x N]
+ * X: Dense Feature Matrix [N x K]
+ * Y: Dense Output Matrix [N x K]
+ */
+__global__ void fused_aggregation_act_kernel(
     const int* __restrict__ row_offsets,
     const int* __restrict__ col_indices,
     const float* __restrict__ values,
-    const float* __restrict__ X,      // [N x K]
-    const float* __restrict__ W,      // [K x L]
-    float* __restrict__ Y,            // [N x L]
-    int N, int K, int L,
+    const float* __restrict__ X,
+    float* __restrict__ Y,
+    int num_nodes,
+    int feature_dim,
     bool apply_relu) 
 {
+    // Each thread handles one node's output for one specific feature dimension
     int node_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int out_idx  = blockIdx.y * blockDim.y + threadIdx.y;
+    int feat_idx = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (node_idx < N && out_idx < L) {
-        float total_sum = 0.0f;
-
-        // Traverse neighbors first
+    if (node_idx < num_nodes && feat_idx < feature_dim) {
+        float sum = 0.0f;
         int start = row_offsets[node_idx];
         int end   = row_offsets[node_idx + 1];
 
+        // Aggregate neighbors
         for (int i = start; i < end; ++i) {
             int neighbor = col_indices[i];
-            float edge_weight = values[i];
-
-            // Reordered: We want to minimize the number of times we 
-            // jump around in the Weight matrix W.
-            // Since we are fixed on 'out_idx', walking through K 
-            // in W[k * L + out_idx] is a strided access.
-            float neighbor_acc = 0.0f;
-            for (int k = 0; k < K; ++k) {
-                neighbor_acc += X[neighbor * K + k] * W[k * L + out_idx];
-            }
-            total_sum += edge_weight * neighbor_acc;
+            float weight = values[i];
+            
+            // Access X[neighbor, feat_idx]
+            sum += weight * X[neighbor * feature_dim + feat_idx];
         }
 
-        if (apply_relu) total_sum = fmaxf(0.0f, total_sum);
-        Y[node_idx * L + out_idx] = total_sum;
+        // Fusion Point: Apply Activation before writing to Global Memory
+        if (apply_relu) {
+            sum = fmaxf(0.0f, sum);
+        }
+
+        Y[node_idx * feature_dim + feat_idx] = sum;
     }
 }

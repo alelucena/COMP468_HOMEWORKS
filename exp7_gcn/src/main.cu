@@ -206,26 +206,37 @@ int main(int argc, char** argv) {
         float* d_W0 = workspace.d_weights;
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
-        dim3 block(16, 16);
-        
-        // --- Layer 1 ---
-        dim3 grid1((graph.num_nodes + block.x - 1) / block.x, 
-                   (opt.hidden_dim + block.y - 1) / block.y);
+        // --- LAYER 1 ---
+        // 1. Weight Multiply First: temp = features_in * W0
+        // We do this first because reducing the feature dimension early 
+        // makes the custom sparse kernel much faster.
+        run_dense_layer(cublas, graph.num_nodes, graph.feature_dim, opt.hidden_dim,
+                        workspace.d_features_in, d_W0, workspace.d_temp);
 
-        fused_spmm_linear_kernel_reordered<<<grid1, block, 0, stream>>>(
+        // 2. Fused Aggregation + ReLU: features_out = ReLU(A_hat * temp)
+        dim3 block(16, 16);
+        dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
+                  (opt.hidden_dim + block.y - 1) / block.y);
+ 
+        fused_aggregation_act_kernel<<<grid, block, 0, stream>>>(
             workspace.d_csr_row_offsets, workspace.d_csr_col_indices, workspace.d_csr_values,
-            workspace.d_features_in, d_W0, workspace.d_features_out,
-            graph.num_nodes, graph.feature_dim, opt.hidden_dim, true
+            workspace.d_temp, workspace.d_features_out,
+            graph.num_nodes, opt.hidden_dim, true
         );
 
-        // --- Layer 2 ---
-        dim3 grid2((graph.num_nodes + block.x - 1) / block.x, 
-                   (graph.num_classes + block.y - 1) / block.y);
+        // --- LAYER 2 ---
+        // 3. Weight Multiply: temp = features_out * W1
+        run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
+                        workspace.d_features_out, d_W1, workspace.d_temp);
 
-        fused_spmm_linear_kernel_reordered<<<grid2, block, 0, stream>>>(
+        // 4. Fused Aggregation (No ReLU on last layer): logits = A_hat * temp
+        dim3 grid_logits((graph.num_nodes + block.x - 1) / block.x, 
+                         (graph.num_classes + block.y - 1) / block.y);
+
+        fused_aggregation_act_kernel<<<grid_logits, block, 0, stream>>>(
             workspace.d_csr_row_offsets, workspace.d_csr_col_indices, workspace.d_csr_values,
-            workspace.d_features_out, d_W1, workspace.d_logits,
-            graph.num_nodes, opt.hidden_dim, graph.num_classes, false
+            workspace.d_temp, workspace.d_logits,
+            graph.num_nodes, graph.num_classes, false
         );
 
         check_cuda(cudaEventRecord(stop), "record fused stop");
