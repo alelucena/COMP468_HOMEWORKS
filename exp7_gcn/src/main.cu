@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
         /* TODO(student): run DGL/PyTorch reference (e.g., via subprocess) or CPU path to compare logits. */
         //std::system("python /home/ajl18/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
         std::string cmd = "python scripts/compare_with_dgl.py "
-                  "--graph " + std::string(opt.graph_prefix) + " "
+                  "--graph " + std::string(opt.graph_prefix) + "_dgl "
                   "--hidden " + std::to_string(opt.hidden_dim) + " "
                   "--layers " + std::to_string(opt.layers) + " "
                   "--outputs outputs.bin";
