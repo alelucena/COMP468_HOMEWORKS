@@ -388,3 +388,43 @@ __global__ void fused_linear_relu_kernel(
         Y[row * N + col] = fmaxf(0.0f, acc);
     }
 }
+
+__global__ void fused_spmm_linear_kernel_reordered(
+    const int* __restrict__ row_offsets,
+    const int* __restrict__ col_indices,
+    const float* __restrict__ values,
+    const float* __restrict__ X,      // [N x K]
+    const float* __restrict__ W,      // [K x L]
+    float* __restrict__ Y,            // [N x L]
+    int N, int K, int L,
+    bool apply_relu) 
+{
+    int node_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int out_idx  = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (node_idx < N && out_idx < L) {
+        float total_sum = 0.0f;
+
+        // Traverse neighbors first
+        int start = row_offsets[node_idx];
+        int end   = row_offsets[node_idx + 1];
+
+        for (int i = start; i < end; ++i) {
+            int neighbor = col_indices[i];
+            float edge_weight = values[i];
+
+            // Reordered: We want to minimize the number of times we 
+            // jump around in the Weight matrix W.
+            // Since we are fixed on 'out_idx', walking through K 
+            // in W[k * L + out_idx] is a strided access.
+            float neighbor_acc = 0.0f;
+            for (int k = 0; k < K; ++k) {
+                neighbor_acc += X[neighbor * K + k] * W[k * L + out_idx];
+            }
+            total_sum += edge_weight * neighbor_acc;
+        }
+
+        if (apply_relu) total_sum = fmaxf(0.0f, total_sum);
+        Y[node_idx * L + out_idx] = total_sum;
+    }
+}
