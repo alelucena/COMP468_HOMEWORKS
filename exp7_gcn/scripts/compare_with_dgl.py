@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Run a reference GCN in DGL/PyTorch and compare logits with the CUDA implementation."""
 
 
