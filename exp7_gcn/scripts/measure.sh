@@ -50,7 +50,7 @@ for graph in "${GRAPHS[@]}"; do
       # Check if the run was successful
       if echo "$OUT" | grep -q "Impl="; then
           echo "Success."
-          echo "$OUT" | grep "Impl=" | awk -F'[= ]' '{print $4","$6","$2","$8","$10","$12}' >> "$LOG"
+          echo "$OUT" | grep "Impl=" | awk -F'[= ]' '{print $4","$6","$2","$10}' >> "$LOG"
       else
           echo "FATAL ERROR ENCOUNTERED:"
           echo "------------------------------------------"
