@@ -1,0 +1,7 @@
+graph,hidden,impl,time_ms,edges_per_s
+../data/cora,64,baseline,19.49,696066.98
+../data/cora,64,fused,9.20,1473842.45
+../data/cora,128,baseline,14.15,958648.79
+../data/cora,128,fused,4.18,3242996.75
+../data/cora,256,baseline,14.26,951586.50
+../data/cora,256,fused,4.30,3153264.60
