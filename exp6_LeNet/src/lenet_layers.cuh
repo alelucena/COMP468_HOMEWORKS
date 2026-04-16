@@ -235,7 +235,7 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
                                              CUDNN_NOT_PROPAGATE_NAN, 0.0), "set activation");
 
     // -- 8 - BIAS
-    // Bias is s 1 x Channels x 1 x 1 for broadcasting
+    // Bias is a 1 x Channels x 1 x 1 for broadcasting
     check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc_conv1, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
                                            1, shape.conv1_out_channels, 1, 1), "set bias desc conv1");
     check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc_conv2, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
