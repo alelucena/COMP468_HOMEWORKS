@@ -180,212 +180,10 @@ void lenet_cpu_reference(const Options& opt,
     std::vector<float> fc2_out(shape.fc2_out_elems);
     perform_fc(fc1_out, 120, shape.fc2_out, weight_offsets[3], bias_offsets[3], fc2_out.data(), true);
 
-    // Final layer output usually does NOT have Tanh applied. May need to use use Softmax later. 
+    // Final layer output does NOT have Tanh applied. 
     perform_fc(fc2_out, 84, shape.fc3_out, weight_offsets[4], bias_offsets[4], output.data(), false);
 }
 
-// int main(int argc, char** argv) {
-//     Options opt = parse_args(argc, argv);
-//     LenetShape shape = make_lenet_shape(opt.batch);
-
-//     std::vector<float> h_input(shape.input_elements);
-//     std::vector<float> h_weights(shape.total_weight_elements);
-//     std::vector<float> h_biases(shape.total_bias_elements);
-//     std::vector<float> h_output(shape.output_elements, 0.0f);
-//     std::vector<float> h_ref(shape.output_elements, 0.0f);
-
-//     seed_tensor(h_input, 1.0f);
-//     seed_tensor(h_weights, 0.05f);
-//     seed_tensor(h_biases, 0.01f);
-
-//     float* d_input = nullptr;
-//     float* d_workspace = nullptr;
-//     float* d_conv1_out = nullptr;
-//     float* d_conv2_out = nullptr;
-//     float* d_pool1_out = nullptr;
-//     float* d_pool2_out = nullptr;
-//     float* d_fc1_out = nullptr;
-//     float* d_fc2_out = nullptr;
-//     float* d_fc3_out = nullptr;
-//     float* d_weights = nullptr;
-//     float* d_biases = nullptr;
-    
-    
-//     // Allocate handles and streams 
-//     cudnnHandle_t cudnn;
-//     check_cudnn(cudnnCreate(&cudnn), "cudnnCreate");
-//     cublasHandle_t cublas;
-//     check_cublas(cublasCreate(&cublas), "cublasCreate");
-
-//     // Set up stream
-//     cudaStream_t stream;
-//     check_cuda(cudaStreamCreate(&stream), "create stream");
-//     cudnnSetStream(cudnn, stream);
-//     cublasSetStream(cublas, stream);
-
-//     LenetDescriptors descs;
-//     /* TODO(student): initialize tensor/filter/conv/pool descriptors using helpers in lenet_layers.cuh. */
-//     create_lenet_descriptors(shape, descs);
-
-//     /* TODO(student): cudaMalloc all required activation and weight buffers + copy host data. */
-
-//     // 1. Allocate device buffers - inputs, weights, and biases
-//     check_cuda(cudaMalloc(&d_input, shape.input_elements * sizeof(float)), "allocate d_input");
-//     check_cuda(cudaMalloc(&d_weights, shape.total_weight_elements * sizeof(float)), "allocate d_weights");
-//     check_cuda(cudaMalloc(&d_biases,  shape.total_bias_elements * sizeof(float)), "alloc d_biases");
-
-//     // 2. Intermediate Activations (The "Working Memory")
-//     // These are necessary because Layer 1 writes to d_conv1_out, then Layer 2 reads from it.
-//     check_cuda(cudaMalloc(&d_conv1_out, shape.conv1_out_elems * sizeof(float)), "alloc d_conv1_out");
-//     check_cuda(cudaMalloc(&d_pool1_out, shape.pool1_out_elems * sizeof(float)), "alloc d_pool1_out");
-//     check_cuda(cudaMalloc(&d_conv2_out, shape.conv2_out_elems * sizeof(float)), "alloc d_conv2_out");
-//     check_cuda(cudaMalloc(&d_pool2_out, shape.pool2_out_elems * sizeof(float)), "alloc d_pool2_out");
-
-//     // 3. Fully Connected Outputs
-//     check_cuda(cudaMalloc(&d_fc1_out,   shape.fc1_out_elems * sizeof(float)), "alloc d_fc1_out");
-//     check_cuda(cudaMalloc(&d_fc2_out,   shape.fc2_out_elems * sizeof(float)), "alloc d_fc2_out");
-//     check_cuda(cudaMalloc(&d_fc3_out,   shape.output_elements * sizeof(float)), "alloc d_fc3_out");
-    
-//     // 4. cuDNN workspace.
-//     cudnnConvolutionFwdAlgo_t algo_desc = parse_algo(opt.algo);
-//     size_t workspace_size_1 = query_conv_workspace(cudnn, shape, descs, algo_desc, false);
-//     size_t workspace_size_2 = query_conv_workspace(cudnn, shape, descs, algo_desc, true);
-//     size_t workspace_size = std::max(workspace_size_1, workspace_size_2);
-//     check_cuda(cudaMalloc(&d_workspace, workspace_size), "alloc d_workspace");
-
-
-//     // 5. Copy host data
-//     check_cuda(cudaMemcpy(d_input, h_input.data(), shape.input_elements * sizeof(float), cudaMemcpyHostToDevice), "copy d_input");
-//     check_cuda(cudaMemcpy(d_weights, h_weights.data(), shape.total_weight_elements * sizeof(float), cudaMemcpyHostToDevice), "copy d_weights");
-//     check_cuda(cudaMemcpy(d_biases, h_biases.data(), shape.total_bias_elements * sizeof(float), cudaMemcpyHostToDevice), "copy d_biases");
-
-   
-   
-
-//     cudaEvent_t start, stop;
-//     check_cuda(cudaEventCreate(&start), "create start");
-//     check_cuda(cudaEventCreate(&stop), "create stop");
-
-//     float elapsed_ms = 0.0f;
-//     if (opt.impl == "baseline") {
-//         check_cuda(cudaEventRecord(start, stream), "record start baseline");
-//         /* TODO(student):
-//            1. run_lenet_conv for conv1/conv2 using opt.algo
-//            2. launch_lenet_pool for each pooling stage
-//            3. reshape tensor for FC input (either via dedicated kernel or by treating memory as-is)
-//            4. run_fc_layer (cuBLAS GEMM + bias + activation) for the dense blocks
-//         */
-
-//         // ---  C1: Conv 1 (32x32 -> 28x28) ---
-//         // false = first conv (uses input_desc and conv1_filter)
-//         run_lenet_conv(cudnn, shape, descs, d_input, 
-//                     d_weights + shape.weight_offsets[0], d_biases, shape.bias_offsets[0],
-//                     d_conv1_out, d_workspace, workspace_size, opt.algo, false);
-
-//         // --- S2: Pool 1 (28x28 -> 14x14) ---
-//         // second_pool = false
-//         run_lenet_pool(cudnn, descs, d_conv1_out, d_pool1_out, false);
-
-//         // --- C3: Conv 2 (14x14 -> 10x10) ---
-//         run_lenet_conv(cudnn, shape, descs, d_pool1_out, 
-//                     d_weights + shape.weight_offsets[1], d_biases, shape.bias_offsets[1],
-//                     d_conv2_out, d_workspace, workspace_size, opt.algo, true);
-
-//         // --- S4: Pool 2 (10x10 -> 5x5) ---
-//         // second_pool = true
-//         run_lenet_pool(cudnn, descs, d_conv2_out, d_pool2_out, true);
-
-//         // --- FC Layer 1 (400 -> 120) ---
-//         run_fc_layer(cublas, shape, 0, d_pool2_out, 
-//                     d_weights + shape.weight_offsets[2], d_biases + shape.bias_offsets[2], 
-//                     d_fc1_out, stream);
-
-//         // --- FC Layer 2 (120 -> 84) ---
-//         run_fc_layer(cublas, shape, 1, d_fc1_out, 
-//                     d_weights + shape.weight_offsets[3], d_biases + shape.bias_offsets[3], 
-//                     d_fc2_out, stream);
-
-//         // --- FC Layer 3 (84 -> 10) ---
-//         run_fc_layer(cublas, shape, 2, d_fc2_out, 
-//                     d_weights + shape.weight_offsets[4], d_biases + shape.bias_offsets[4], 
-//                     d_fc3_out, stream);
-
-
-//         check_cuda(cudaEventRecord(stop, stream), "record stop baseline");
-//         check_cuda(cudaEventSynchronize(stop), "sync stop baseline");
-//         check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed baseline");
-//     } else if (opt.impl == "fused") {
-//         check_cuda(cudaEventRecord(start, stream), "record start fused");
-//         /* TODO(student): same as baseline but fuse activation/bias where possible. */
-//         check_cuda(cudaEventRecord(stop, stream), "record stop fused");
-//         check_cuda(cudaEventSynchronize(stop), "sync stop fused");
-//         check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "elapsed fused");
-//     } else {
-//         throw std::invalid_argument("Unknown --impl=" + opt.impl);
-//     }
-
-//     /* TODO(student): copy logits from device to h_output. */
-//     cudaMemcpyAsync(h_output.data(), d_fc3_out, shape.output_elements * sizeof(float), cudaMemcpyDeviceToHost, stream);
-//     cudaStreamSynchronize(stream);
-
-//     if (!opt.dump_path.empty()) {
-//         std::ofstream ofs(opt.dump_path, std::ios::binary);
-//         if (!ofs) {
-//             throw std::runtime_error("Failed to open dump path: " + opt.dump_path);
-//         }
-//         ofs.write(reinterpret_cast<const char*>(h_output.data()),
-//                   static_cast<std::streamsize>(h_output.size() * sizeof(float)));
-//         ofs.close();
-//     }
-
-//     float max_diff = 0.0f;
-//     if (opt.verify) {
-//         lenet_cpu_reference(opt,
-//                             shape,
-//                             h_weights,
-//                             shape.weight_offsets,
-//                             h_biases,
-//                             shape.bias_offsets,
-//                             h_input,
-//                             h_ref);
-//         /* TODO(student): compute and print max abs diff between h_output and h_ref. */
-//          for (size_t i = 0; i < h_ref.size(); ++i) {
-//             max_diff = std::max(max_diff, std::abs(h_output[i] - h_ref[i]));
-//         }
-//         std::cout << "Max absolute difference: " << max_diff << std::endl;
-//     }
-
-//     if (elapsed_ms > 0.0f) {
-//         std::cout << std::fixed << std::setprecision(2)
-//                   << "Impl=" << opt.impl
-//                   << " Batch=" << opt.batch
-//                   << " Algo=" << opt.algo
-//                   << " Time(ms)=" << elapsed_ms
-//                   << " GFLOP/s=" << lenet_gflops(shape, elapsed_ms) << std::endl;
-//     } else {
-//         std::cout << "Forward pass executed (timing TODO incomplete)." << std::endl;
-//     }
-
-//     /* TODO(student): destroy descriptors, handles, free device buffers, destroy events. */
-    
-//     // 1. Library Cleanup
-//     check_cudnn(cudnnDestroy(cudnn), "destroy cudnn");
-//     check_cublas(cublasDestroy(cublas), "destroy cublas");
-
-//     // 2. Descriptor Cleanup 
-//     destroy_lenet_descriptors(descs);
-
-//     // 3. Buffer Cleanup
-//     cudaFree(d_input); cudaFree(d_weights); cudaFree(d_biases); cudaFree(d_workspace);
-//     cudaFree(d_conv1_out); cudaFree(d_conv2_out); cudaFree(d_pool1_out); cudaFree(d_pool2_out);
-//     cudaFree(d_fc1_out); cudaFree(d_fc2_out); cudaFree(d_fc3_out);
-
-//     // 4. Synchronization/Event Cleanup
-//     cudaEventDestroy(start); cudaEventDestroy(stop);
-//     cudaStreamDestroy(stream);
-
-//     return 0;
-// }
 
 int main(int argc, char** argv) {
     Options opt = parse_args(argc, argv);
@@ -437,8 +235,8 @@ int main(int argc, char** argv) {
     check_cuda(cudaMalloc(&d_weights, shape.total_weight_elements * sizeof(float)), "allocate d_weights");
     check_cuda(cudaMalloc(&d_biases,  shape.total_bias_elements * sizeof(float)), "alloc d_biases");
 
-    // 2. Intermediate Activations (The "Working Memory")
-    // These are necessary because Layer 1 writes to d_conv1_out, then Layer 2 reads from it.
+    // 2. Intermediate Activations 
+    // Necessary because Layer 1 writes to d_conv1_out, then Layer 2 reads from it.
     check_cuda(cudaMalloc(&d_conv1_out, shape.conv1_out_elems * sizeof(float)), "alloc d_conv1_out");
     check_cuda(cudaMalloc(&d_pool1_out, shape.pool1_out_elems * sizeof(float)), "alloc d_pool1_out");
     check_cuda(cudaMalloc(&d_conv2_out, shape.conv2_out_elems * sizeof(float)), "alloc d_conv2_out");
@@ -463,7 +261,7 @@ int main(int argc, char** argv) {
     check_cuda(cudaMemcpy(d_biases, h_biases.data(), shape.total_bias_elements * sizeof(float), cudaMemcpyHostToDevice), "copy d_biases");
 
     // --- WARMUP RUN (Untimed) ---
-    // This handles library initialization and kernel loading outside the timer.
+    // Handles library initialization and kernel loading outside the timer.
     for (int i = 0; i < 5; ++i) {
         if (opt.impl == "baseline") {
             run_lenet_conv(cudnn, shape, descs, d_input, d_weights + shape.weight_offsets[0], d_biases, shape.bias_offsets[0], d_conv1_out, d_workspace, workspace_size, opt.algo, false);

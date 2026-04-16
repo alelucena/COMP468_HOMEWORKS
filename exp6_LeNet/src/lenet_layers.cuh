@@ -206,7 +206,7 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
     // Filter: 16 x 6 x 5 x 5
     check_cudnn(cudnnSetFilter4dDescriptor(d.conv2_filter, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, 
                                            16, 6, 5, 5), "set conv2_filter");
-    // Conv: Padding 0, Stride 1 (reuse settings from conv1_desc if preferred, but explicit here)
+    // Conv: Padding 0, Stride 1
     check_cudnn(cudnnSetConvolution2dDescriptor(d.conv2_desc, 0, 0, 1, 1, 1, 1, 
                                                 CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT), "set conv2_desc");
     // Output: Batch x 16 x 10 x 10
@@ -219,7 +219,7 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
                                            shape.batch, 16, 5, 5), "set pool2_out_desc");
 
     // --- 6. Configure Fully Connected Layers (FC1, FC2, FC3) ---
-    // We treat FC layers as 4D tensors where Height=1 and Width=1
+    // Treat FC layers as 4D tensors where Height=1 and Width=1
     // FC1 Output: Batch x 120 x 1 x 1
     check_cudnn(cudnnSetTensor4dDescriptor(d.fc1_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
                                            shape.batch, 120, 1, 1), "set fc1_desc");
@@ -235,7 +235,7 @@ inline void create_lenet_descriptors(const LenetShape& shape, LenetDescriptors& 
                                              CUDNN_NOT_PROPAGATE_NAN, 0.0), "set activation");
 
     // -- 8 - BIAS
-    // Bias is always 1 x Channels x 1 x 1 for NCHW broadcasting
+    // Bias is s 1 x Channels x 1 x 1 for broadcasting
     check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc_conv1, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
                                            1, shape.conv1_out_channels, 1, 1), "set bias desc conv1");
     check_cudnn(cudnnSetTensor4dDescriptor(d.bias_desc_conv2, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 
@@ -312,7 +312,7 @@ inline size_t query_conv_workspace(cudnnHandle_t handle,
             handle,
             descs.input_desc,
             descs.conv1_filter,
-            descs.conv1_desc,     // Don't forget the convolution descriptor!
+            descs.conv1_desc,     
             descs.conv1_out_desc,
             algo,
             &workspace_size
@@ -395,7 +395,7 @@ inline void run_lenet_pool(cudnnHandle_t handle,
     (void)second_pool;
     
     float alpha = 1.0f;
-    float beta_zero = 0.0f;
+    float beta = 0.0f;
     check_cudnn(cudnnPoolingForward(
         handle, 
         descs.pool,
@@ -404,7 +404,7 @@ inline void run_lenet_pool(cudnnHandle_t handle,
         // If true, use Layer 2 descriptors.
         second_pool ? descs.conv2_out_desc : descs.conv1_out_desc,
         d_input,
-        &beta_zero, // Use the variable you defined above
+        &beta, 
         second_pool ? descs.pool2_out_desc : descs.pool1_out_desc,
         d_output
     ), "Pooling");
@@ -413,7 +413,7 @@ inline void run_lenet_pool(cudnnHandle_t handle,
 __global__ void fc_bias_activation_kernel(float* data, const float* bias, int size, int out_features, bool apply_tanh) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < size) {
-        // Now that it's standard Row-Major, the feature index is:
+        // Standard Row-Major - the feature index is:
         int feature_idx = idx % out_features; 
         float val = data[idx] + bias[feature_idx];
         
@@ -455,9 +455,9 @@ inline void run_fc_layer(cublasHandle_t handle,
     check_cublas(cublasSgemm(handle, 
                             CUBLAS_OP_T,   // Transpose Weights (now Weight is [in_features, out_features])
                             CUBLAS_OP_N,   // Input is [batch, in_features]
-                            out_features,  // m
-                            batch,         // n
-                            in_features,   // k
+                            out_features,  // M
+                            batch,         // N
+                            in_features,   // K
                             &alpha,
                             d_weight, in_features, // lda
                             d_input, in_features,  // ldb
