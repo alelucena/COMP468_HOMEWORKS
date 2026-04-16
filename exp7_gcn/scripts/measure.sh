@@ -31,7 +31,7 @@
 set -uo pipefail 
 
 BIN="../bin/dgcn"
-GRAPHS=("data/cora" "data/citeseer")
+GRAPHS=("data/cora")
 HIDDENS=(64 128 256)
 IMPLS=(baseline fused)
 LAYERS=2
