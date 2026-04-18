@@ -101,7 +101,6 @@ inline void build_graph_from_files(const std::string& prefix, GraphData& graph) 
     size_t feat_file_size = feat_file.tellg();
     feat_file.seekg(0, std::ios::beg);
     
-    // total_bytes = num_nodes * feature_dim * sizeof(float)
     graph.feature_dim = feat_file_size / (graph.num_nodes * sizeof(float));
 
     size_t total_features = static_cast<size_t>(graph.num_nodes) * graph.feature_dim;
@@ -310,7 +309,7 @@ inline void run_dense_layer(cublasHandle_t handle,
     float beta = 0.0f;
 
     // To get Row-Major C = A * B, we compute Col-Major C = (B_T * A_T)_T
-    // We pass B as the first argument and A as the second.
+    // Pass B as the first argument and A as the second.
     cublasSgemm(handle, 
                 CUBLAS_OP_N, CUBLAS_OP_N, 
                 N, M, K,           // Swap of N and M
@@ -357,45 +356,6 @@ inline void softmax_cross_entropy(const float* d_logits,
     (void)d_loss;
 }
 
-/**
- * Fused Linear Layer + ReLU Activation
- * Computes: Y = ReLU(X * W)
- * X: [M x K] Row-Major (Intermediate features)
- * W: [K x N] Row-Major (Weights)
- * Y: [M x N] Row-Major (Output)
- */
-__global__ void fused_linear_relu_kernel(
-    const float* __restrict__ X, 
-    const float* __restrict__ W, 
-    float* __restrict__ Y,
-    int M, int K, int N) 
-{
-    // row maps to Nodes (M), col maps to Output Features (N)
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    int col = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (row < M && col < N) {
-        float acc = 0.0f;
-        
-        // Dot product: Row of X * Column of W
-        for (int k = 0; k < K; ++k) {
-            // Indexing X[row, k] -> row * K + k
-            // Indexing W[k, col] -> k * N + col
-            acc += X[row * K + k] * W[k * N + col];
-        }
-
-        // Fusion: Apply ReLU activation
-        Y[row * N + col] = fmaxf(0.0f, acc);
-    }
-}
-
-/**
- * Fused Aggregation + Activation
- * Computes: Y = Activation(A_hat * X)
- * A_hat: CSR Sparse Matrix [N x N]
- * X: Dense Feature Matrix [N x K]
- * Y: Dense Output Matrix [N x K]
- */
 __global__ void fused_aggregation_act_kernel(
     const int* __restrict__ row_offsets,
     const int* __restrict__ col_indices,

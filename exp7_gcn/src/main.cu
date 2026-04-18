@@ -106,18 +106,6 @@ int main(int argc, char** argv) {
                         weights_count * sizeof(float), 
                         cudaMemcpyHostToDevice), "Copy weights");
 
-    // keep weights on host for dumping later
-    //  --dump is required; --verify may also need it
-    // if (!opt.dump_path.empty()) {
-    //     std::ofstream ofs("weights.bin", std::ios::binary);
-    //     if (ofs) {
-    //         ofs.write(reinterpret_cast<const char*>(h_weights.data()), h_weights.size() * sizeof(float));
-    //         ofs.close();
-    //         std::cout << "Weights dumped to weights.bin" << std::endl;
-    //     } else {
-    //         std::cerr << "Error: Could not write to weights.bin" << std::endl;
-    //     }
-    // }
 
     float elapsed_ms = 0.0f;
     if (opt.impl == "baseline") {
@@ -156,7 +144,7 @@ int main(int argc, char** argv) {
                             graph.num_nodes, opt.hidden_dim, graph.num_nodes,
                             workspace.d_features_out, workspace.d_temp);
 
-        // 5. Weight multiply
+        // 5. Weight multiplication
         // [N * hidden_dim] * [hidden_dim x num_classes] -> [N x num_classes]
         // Signature: M, K, N (M=Nodes, K=Hidden, N=Classes)
         run_dense_layer(cublas, 
@@ -173,43 +161,13 @@ int main(int argc, char** argv) {
         /* TODO(student): implement fused kernels (e.g., combine aggregation + activation) and time here. */
 
         // // Pointers to weight matrices
-        // float* d_W0 = workspace.d_weights;
-        // float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
-
-        // // --- LAYER 1 ---
-        // // 1. Aggregation: temp = A_hat * features_in
-        // run_sparse_dense_mm(cusparse, workspace, 
-        //                     graph.num_nodes, graph.feature_dim, graph.num_nodes,
-        //                     workspace.d_features_in, workspace.d_temp);
-
-        // // 2. Fused Linear + ReLU: features_out = ReLU(temp * W0)
-        // dim3 block(16, 16);
-        // dim3 grid((graph.num_nodes + block.x - 1) / block.x, 
-        //           (opt.hidden_dim + block.y - 1) / block.y);
-
-        // fused_linear_relu_kernel<<<grid, block, 0, stream>>>(
-        //     workspace.d_temp, d_W0, workspace.d_features_out,
-        //     graph.num_nodes, graph.feature_dim, opt.hidden_dim
-        // );
-
-        // // --- LAYER 2 ---
-        // // 3. Aggregation: temp = A_hat * features_out
-        // run_sparse_dense_mm(cusparse, workspace,
-        //                     graph.num_nodes, opt.hidden_dim, graph.num_nodes,
-        //                     workspace.d_features_out, workspace.d_temp);
-
-        // // 4. Final Linear: logits = temp * W1 (No ReLU)
-        // // We reuse the baseline helper to ensure exact parity for validation
-        // run_dense_layer(cublas, graph.num_nodes, opt.hidden_dim, graph.num_classes,
-        //                 workspace.d_temp, d_W1, workspace.d_logits);
-
         float* d_W0 = workspace.d_weights;
         float* d_W1 = workspace.d_weights + (graph.feature_dim * opt.hidden_dim);
 
         // --- LAYER 1 ---
         // 1. Weight Multiply First: temp = features_in * W0
-        // We do this first because reducing the feature dimension early 
-        // makes the custom sparse kernel much faster.
+        // Do this first because it reduces the feature dimension early, 
+        // making the custom sparse kernel much faster.
         run_dense_layer(cublas, graph.num_nodes, graph.feature_dim, opt.hidden_dim,
                         workspace.d_features_in, d_W0, workspace.d_temp);
 
@@ -263,7 +221,6 @@ int main(int argc, char** argv) {
 
     if (opt.verify) {
         /* TODO(student): run DGL/PyTorch reference (e.g., via subprocess) or CPU path to compare logits. */
-        //std::system("python /home/ajl18/COMP468_HOMEWORKS/exp7_gcn/scripts/compare_with_dgl.py");
         std::string cmd = "python scripts/compare_with_dgl.py "
                   "--graph " + std::string(opt.graph_prefix) + "_dgl "
                   "--hidden " + std::to_string(opt.hidden_dim) + " "

@@ -388,12 +388,7 @@ inline void run_lenet_pool(cudnnHandle_t handle,
                            float* d_output,
                            bool second_pool) {
     /* TODO(student): use cudnnPoolingForward for pool1 or pool2. */
-    (void)handle;
-    (void)descs;
-    (void)d_input;
-    (void)d_output;
-    (void)second_pool;
-    
+       
     float alpha = 1.0f;
     float beta = 0.0f;
     check_cudnn(cudnnPoolingForward(
